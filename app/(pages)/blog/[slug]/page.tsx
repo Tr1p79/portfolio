@@ -2,11 +2,11 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useState, useMemo } from 'react'
-import { ArrowLeft, Calendar, Clock, Heart, Eye, Tag, Share2, Bookmark, ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { ArrowLeft, Calendar, Clock, Heart, Eye, Tag, Share2, Bookmark, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { sampleBlogPosts, blogCategories } from '../../../data/blog-types'
+import { blogAPI, BlogPost } from '../../../../lib/database'
 
 interface BlogPostPageProps {
   params: {
@@ -15,21 +15,13 @@ interface BlogPostPageProps {
 }
 
 export default function BlogPostPage({ params }: BlogPostPageProps) {
-  // In a real app, you'd fetch the post by slug
-  const post = sampleBlogPosts.find(p => p.slug === params.slug) || sampleBlogPosts[0]
+  const [post, setPost] = useState<BlogPost | null>(null)
+  const [relatedPosts, setRelatedPosts] = useState<BlogPost[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string>('')
   const [isLiked, setIsLiked] = useState(false)
   const [isBookmarked, setIsBookmarked] = useState(false)
   
-  // Get related posts (same category, excluding current post)
-  const relatedPosts = sampleBlogPosts
-    .filter(p => p.category === post.category && p.id !== post.id && p.published)
-    .slice(0, 3)
-
-  // Get previous and next posts
-  const currentIndex = sampleBlogPosts.findIndex(p => p.id === post.id)
-  const previousPost = currentIndex > 0 ? sampleBlogPosts[currentIndex - 1] : null
-  const nextPost = currentIndex < sampleBlogPosts.length - 1 ? sampleBlogPosts[currentIndex + 1] : null
-
   // Memoize floating particles
   const floatingParticles = useMemo(() => {
     return Array.from({ length: 15 }, (_, i) => ({
@@ -41,6 +33,46 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
     }))
   }, [])
 
+  useEffect(() => {
+    loadBlogPost()
+  }, [params.slug])
+
+  const loadBlogPost = async () => {
+    setLoading(true)
+    setError('')
+    
+    try {
+      // Load the specific post
+      const fetchedPost = await blogAPI.getPostBySlug(params.slug)
+      
+      if (!fetchedPost) {
+        setError('Blog post not found')
+        return
+      }
+
+      setPost(fetchedPost)
+
+      // Increment view count
+      await blogAPI.incrementViews(fetchedPost.id)
+      
+      // Update local view count
+      setPost(prev => prev ? { ...prev, views: prev.views + 1 } : null)
+
+      // Load related posts (same category, excluding current post)
+      const allPosts = await blogAPI.getPublishedPosts()
+      const related = allPosts
+        .filter(p => p.category === fetchedPost.category && p.id !== fetchedPost.id)
+        .slice(0, 3)
+      setRelatedPosts(related)
+
+    } catch (err: any) {
+      setError(err.message || 'Failed to load blog post')
+      console.error('Error loading blog post:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
@@ -49,17 +81,12 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
     })
   }
 
-  const getCategoryColor = (categoryName: string) => {
-    const category = blogCategories.find(cat => cat.name === categoryName)
-    return category?.color || 'from-gray-500 to-gray-600'
-  }
-
   const handleShare = async () => {
     if (navigator.share) {
       try {
         await navigator.share({
-          title: post.title,
-          text: post.excerpt,
+          title: post?.title,
+          text: post?.excerpt,
           url: window.location.href,
         })
       } catch (error) {
@@ -69,6 +96,81 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
       // Fallback: copy to clipboard
       navigator.clipboard.writeText(window.location.href)
     }
+  }
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center">
+        <div className="flex items-center gap-3 text-white">
+          <RefreshCw className="w-6 h-6 animate-spin" />
+          <span>Loading blog post...</span>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error || !post) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 flex items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-4xl font-light text-white mb-4">Post Not Found</h1>
+          <p className="text-gray-300 mb-8">{error || 'The blog post you\'re looking for doesn\'t exist.'}</p>
+          <Link
+            href="/blog"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-full hover:bg-indigo-500 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to Blog
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  // Render markdown content as HTML (basic implementation)
+  const renderContent = (content: string) => {
+    return content.split('\n\n').map((paragraph, index) => {
+      if (paragraph.startsWith('# ')) {
+        return (
+          <h2 key={index} className="text-3xl font-medium text-white mt-12 mb-6">
+            {paragraph.replace('# ', '')}
+          </h2>
+        )
+      }
+      if (paragraph.startsWith('## ')) {
+        return (
+          <h3 key={index} className="text-2xl font-medium text-white mt-8 mb-4">
+            {paragraph.replace('## ', '')}
+          </h3>
+        )
+      }
+      if (paragraph.startsWith('### ')) {
+        return (
+          <h4 key={index} className="text-xl font-medium text-white mt-6 mb-3">
+            {paragraph.replace('### ', '')}
+          </h4>
+        )
+      }
+      if (paragraph.startsWith('- ')) {
+        const items = paragraph.split('\n').filter(item => item.startsWith('- '))
+        return (
+          <ul key={index} className="list-disc list-inside space-y-2 ml-4 mb-6">
+            {items.map((item, itemIndex) => (
+              <li key={itemIndex} className="text-gray-300">
+                {item.replace('- ', '')}
+              </li>
+            ))}
+          </ul>
+        )
+      }
+      return (
+        <p key={index} className="text-gray-300 leading-relaxed mb-6">
+          {paragraph}
+        </p>
+      )
+    })
   }
 
   return (
@@ -118,7 +220,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
             </Link>
 
             {/* Category */}
-            <div className={`inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r ${getCategoryColor(post.category)} text-white text-sm rounded-full mb-6`}>
+            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm rounded-full mb-6">
               <Tag className="w-4 h-4" />
               {post.category}
             </div>
@@ -132,11 +234,11 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
             <div className="flex flex-wrap items-center gap-6 text-gray-300 mb-8">
               <div className="flex items-center gap-2">
                 <Calendar className="w-4 h-4" />
-                {formatDate(post.publishedAt)}
+                {formatDate(post.published_at || post.created_at)}
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-4 h-4" />
-                {post.readTime} min read
+                {post.read_time} min read
               </div>
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4" />
@@ -185,20 +287,22 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
           </motion.div>
 
           {/* Featured Image */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.2 }}
-            className="relative h-64 md:h-96 rounded-2xl overflow-hidden mb-12 border border-white/10"
-          >
-            <Image
-              src={post.featuredImage}
-              alt={post.title}
-              fill
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
-          </motion.div>
+          {post.featured_image && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="relative h-64 md:h-96 rounded-2xl overflow-hidden mb-12 border border-white/10"
+            >
+              <Image
+                src={post.featured_image}
+                alt={post.title}
+                fill
+                className="object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent" />
+            </motion.div>
+          )}
         </div>
 
         {/* Article Content */}
@@ -209,112 +313,38 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
           className="max-w-4xl mx-auto px-6 mb-16"
         >
           <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-8 md:p-12">
+            {post.excerpt && (
+              <div className="text-xl text-gray-300 leading-relaxed mb-8 pb-8 border-b border-white/10">
+                {post.excerpt}
+              </div>
+            )}
+            
             <div className="prose prose-lg prose-invert max-w-none">
-              {/* Convert markdown content to HTML - in a real app, use a markdown parser */}
               <div className="text-gray-300 leading-relaxed space-y-6">
-                {post.content.split('\n\n').map((paragraph, index) => {
-                  if (paragraph.startsWith('# ')) {
-                    return (
-                      <h2 key={index} className="text-3xl font-medium text-white mt-12 mb-6">
-                        {paragraph.replace('# ', '')}
-                      </h2>
-                    )
-                  }
-                  if (paragraph.startsWith('## ')) {
-                    return (
-                      <h3 key={index} className="text-2xl font-medium text-white mt-8 mb-4">
-                        {paragraph.replace('## ', '')}
-                      </h3>
-                    )
-                  }
-                  if (paragraph.startsWith('### ')) {
-                    return (
-                      <h4 key={index} className="text-xl font-medium text-white mt-6 mb-3">
-                        {paragraph.replace('### ', '')}
-                      </h4>
-                    )
-                  }
-                  if (paragraph.startsWith('- ')) {
-                    const items = paragraph.split('\n').filter(item => item.startsWith('- '))
-                    return (
-                      <ul key={index} className="list-disc list-inside space-y-2 ml-4">
-                        {items.map((item, itemIndex) => (
-                          <li key={itemIndex} className="text-gray-300">
-                            {item.replace('- ', '')}
-                          </li>
-                        ))}
-                      </ul>
-                    )
-                  }
-                  return (
-                    <p key={index} className="text-gray-300 leading-relaxed">
-                      {paragraph}
-                    </p>
-                  )
-                })}
+                {renderContent(post.content)}
               </div>
             </div>
           </div>
         </motion.div>
 
         {/* Tags */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.5 }}
-          className="max-w-4xl mx-auto px-6 mb-16"
-        >
-          <div className="flex flex-wrap gap-3">
-            <span className="text-gray-400">Tags:</span>
-            {post.tags.map((tag) => (
-              <span
-                key={tag}
-                className="px-3 py-1 bg-white/10 text-gray-300 text-sm rounded-full border border-white/20"
-              >
-                {tag}
-              </span>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Navigation to Previous/Next Posts */}
-        {(previousPost || nextPost) && (
+        {post.tags.length > 0 && (
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
+            transition={{ duration: 0.8, delay: 0.5 }}
             className="max-w-4xl mx-auto px-6 mb-16"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Previous Post */}
-              {previousPost && (
-                <Link href={`/blog/${previousPost.slug}`} className="group">
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 hover:border-indigo-400/30 transition-all duration-300">
-                    <div className="flex items-center gap-2 text-gray-400 text-sm mb-2">
-                      <ChevronLeft className="w-4 h-4" />
-                      Previous Article
-                    </div>
-                    <h4 className="text-white font-medium group-hover:text-gray-100 transition-colors">
-                      {previousPost.title}
-                    </h4>
-                  </div>
-                </Link>
-              )}
-
-              {/* Next Post */}
-              {nextPost && (
-                <Link href={`/blog/${nextPost.slug}`} className="group">
-                  <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 hover:border-indigo-400/30 transition-all duration-300 text-right">
-                    <div className="flex items-center justify-end gap-2 text-gray-400 text-sm mb-2">
-                      Next Article
-                      <ChevronRight className="w-4 h-4" />
-                    </div>
-                    <h4 className="text-white font-medium group-hover:text-gray-100 transition-colors">
-                      {nextPost.title}
-                    </h4>
-                  </div>
-                </Link>
-              )}
+            <div className="flex flex-wrap gap-3">
+              <span className="text-gray-400">Tags:</span>
+              {post.tags.map((tag) => (
+                <span
+                  key={tag}
+                  className="px-3 py-1 bg-white/10 text-gray-300 text-sm rounded-full border border-white/20"
+                >
+                  {tag}
+                </span>
+              ))}
             </div>
           </motion.div>
         )}
@@ -332,14 +362,16 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
               {relatedPosts.map((relatedPost) => (
                 <Link key={relatedPost.id} href={`/blog/${relatedPost.slug}`} className="group">
                   <article className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden hover:border-indigo-400/30 transition-all duration-300">
-                    <div className="relative h-40 overflow-hidden">
-                      <Image
-                        src={relatedPost.featuredImage}
-                        alt={relatedPost.title}
-                        fill
-                        className="object-cover transition-transform duration-300 group-hover:scale-105"
-                      />
-                    </div>
+                    {relatedPost.featured_image && (
+                      <div className="relative h-40 overflow-hidden">
+                        <Image
+                          src={relatedPost.featured_image}
+                          alt={relatedPost.title}
+                          fill
+                          className="object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                      </div>
+                    )}
                     <div className="p-4">
                       <h4 className="text-white font-medium mb-2 group-hover:text-gray-100 transition-colors line-clamp-2">
                         {relatedPost.title}
@@ -349,7 +381,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                       </p>
                       <div className="flex items-center gap-2 text-xs text-gray-500 mt-3">
                         <Calendar className="w-3 h-3" />
-                        {formatDate(relatedPost.publishedAt)}
+                        {formatDate(relatedPost.published_at || relatedPost.created_at)}
                       </div>
                     </div>
                   </article>

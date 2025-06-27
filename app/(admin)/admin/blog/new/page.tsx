@@ -3,6 +3,7 @@
 
 import { motion } from 'framer-motion'
 import { useState, useMemo } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   ArrowLeft, 
   Save, 
@@ -17,11 +18,22 @@ import {
   Italic,
   List,
   Link as LinkIcon,
-  Quote
+  Quote,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
-import Image from 'next/image'
-import { blogCategories } from '../../../../data/blog-types'
+import AdminAuthGuard from '@components/admin/AdminAuthGuard'
+import { blogAPI } from '@lib/database'
+
+// Blog categories - in a real app, get from database
+const blogCategories = [
+  { id: '1', name: 'Tutorials', color: 'from-blue-500 to-cyan-500' },
+  { id: '2', name: 'Behind the Scenes', color: 'from-purple-500 to-pink-500' },
+  { id: '3', name: 'Industry News', color: 'from-green-500 to-emerald-500' },
+  { id: '4', name: 'Personal', color: 'from-orange-500 to-red-500' },
+  { id: '5', name: 'Reviews', color: 'from-teal-500 to-blue-500' }
+]
 
 interface BlogPostForm {
   title: string
@@ -30,12 +42,12 @@ interface BlogPostForm {
   content: string
   category: string
   tags: string[]
-  featuredImage: string
+  featured_image?: string
   published: boolean
   featured: boolean
 }
 
-export default function BlogEditor() {
+function BlogEditorContent() {
   const [formData, setFormData] = useState<BlogPostForm>({
     title: '',
     slug: '',
@@ -43,13 +55,17 @@ export default function BlogEditor() {
     content: '',
     category: '',
     tags: [],
-    featuredImage: '',
+    featured_image: '',
     published: false,
     featured: false
   })
 
   const [activeTab, setActiveTab] = useState<'write' | 'preview'>('write')
   const [tagInput, setTagInput] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [error, setError] = useState('')
+  const router = useRouter()
 
   // Memoize floating particles
   const floatingParticles = useMemo(() => {
@@ -141,16 +157,45 @@ export default function BlogEditor() {
     setFormData(prev => ({ ...prev, content: newContent }))
   }
 
-  const handleSave = (publish: boolean = false) => {
-    // In a real app, this would save to your backend
-    console.log('Saving blog post:', { ...formData, published: publish })
-    // Show success message
-  }
-
-  const estimateReadTime = (content: string) => {
+  const calculateReadTime = (content: string) => {
     const wordsPerMinute = 200
     const words = content.split(/\s+/).length
     return Math.ceil(words / wordsPerMinute)
+  }
+
+  const handleSave = async (publish: boolean = false) => {
+    if (!formData.title || !formData.content) {
+      setError('Title and content are required')
+      return
+    }
+
+    setIsSaving(true)
+    setError('')
+    setSaveStatus('idle')
+
+    try {
+      const postData = {
+        ...formData,
+        published: publish,
+        read_time: calculateReadTime(formData.content),
+        published_at: publish ? new Date().toISOString() : undefined
+      }
+
+      await blogAPI.createPost(postData)
+      
+      setSaveStatus('success')
+      
+      // Redirect after short delay
+      setTimeout(() => {
+        router.push('/admin/blog')
+      }, 1500)
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to save blog post')
+      setSaveStatus('error')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   return (
@@ -204,24 +249,45 @@ export default function BlogEditor() {
             </h1>
             
             <div className="flex gap-3">
+              {saveStatus === 'success' && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-green-900/20 border border-green-500/30 text-green-300 rounded-full">
+                  <CheckCircle className="w-4 h-4" />
+                  Saved successfully!
+                </div>
+              )}
+              
               <button
                 onClick={() => handleSave(false)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-full hover:bg-white/20 border border-white/20 transition-all duration-300"
+                disabled={isSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-full hover:bg-white/20 border border-white/20 transition-all duration-300 disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
-                Save Draft
+                {isSaving ? 'Saving...' : 'Save Draft'}
               </button>
               
               <button
                 onClick={() => handleSave(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600/30 text-white rounded-full hover:bg-blue-600/40 border border-blue-400/50 transition-all duration-300"
+                disabled={isSaving}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600/30 text-white rounded-full hover:bg-blue-600/40 border border-blue-400/50 transition-all duration-300 disabled:opacity-50"
               >
                 <FileText className="w-4 h-4" />
-                Publish
+                {isSaving ? 'Publishing...' : 'Publish'}
               </button>
             </div>
           </div>
         </motion.div>
+
+        {/* Error Message */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-red-900/20 border border-red-500/30 rounded-xl text-red-300 flex items-center gap-2"
+          >
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            {error}
+          </motion.div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
           {/* Main Editor */}
@@ -356,7 +422,7 @@ export default function BlogEditor() {
                     className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-blue-400/50 focus:bg-white/15 transition-all duration-300 resize-none font-mono"
                   />
                   <p className="text-gray-400 text-sm mt-1">
-                    Supports Markdown. Estimated read time: {estimateReadTime(formData.content)} minutes
+                    Supports Markdown. Estimated read time: {calculateReadTime(formData.content)} minutes
                   </p>
                 </div>
               </div>
@@ -468,16 +534,15 @@ export default function BlogEditor() {
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
               <h3 className="text-white font-medium mb-4">Featured Image</h3>
               
-              {formData.featuredImage ? (
+              {formData.featured_image ? (
                 <div className="relative aspect-video rounded-lg overflow-hidden mb-3">
-                  <Image
-                    src={formData.featuredImage}
+                  <img
+                    src={formData.featured_image}
                     alt="Featured"
-                    fill
-                    className="object-cover"
+                    className="w-full h-full object-cover"
                   />
                   <button
-                    onClick={() => setFormData(prev => ({ ...prev, featuredImage: '' }))}
+                    onClick={() => setFormData(prev => ({ ...prev, featured_image: '' }))}
                     className="absolute top-2 right-2 p-1 bg-red-600/80 text-white rounded-full hover:bg-red-600 transition-colors"
                   >
                     ×
@@ -494,9 +559,36 @@ export default function BlogEditor() {
                 </div>
               )}
             </div>
+
+            {/* Post Stats */}
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
+              <h3 className="text-white font-medium mb-4">Post Stats</h3>
+              <div className="space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Word count:</span>
+                  <span className="text-white">{formData.content.split(/\s+/).length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Read time:</span>
+                  <span className="text-white">{calculateReadTime(formData.content)} min</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-400">Characters:</span>
+                  <span className="text-white">{formData.content.length}</span>
+                </div>
+              </div>
+            </div>
           </motion.div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function BlogEditor() {
+  return (
+    <AdminAuthGuard>
+      <BlogEditorContent />
+    </AdminAuthGuard>
   )
 }

@@ -3,8 +3,9 @@
 
 import { motion } from 'framer-motion'
 import { useState, useMemo } from 'react'
-import { ArrowLeft, Mail, Phone, MapPin, Send, Clock, Calendar, CheckCircle } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Send, Clock, Calendar, CheckCircle, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { contactAPI } from '../../../lib/database'
 
 interface ContactForm {
   name: string
@@ -27,6 +28,7 @@ export default function ContactPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isSubmitted, setIsSubmitted] = useState(false)
+  const [error, setError] = useState<string>('')
 
   // Memoize floating particles
   const floatingParticles = useMemo(() => {
@@ -42,25 +44,39 @@ export default function ContactPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setError('')
     
-    // Simulate form submission
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    setIsSubmitting(false)
-    setIsSubmitted(true)
-    
-    // Reset form after success
-    setTimeout(() => {
-      setIsSubmitted(false)
-      setFormData({
-        name: '',
-        email: '',
-        subject: '',
-        message: '',
-        budget: '',
-        timeline: ''
+    try {
+      // Submit to Supabase database
+      await contactAPI.submitContact({
+        name: formData.name,
+        email: formData.email,
+        subject: formData.subject,
+        message: formData.message,
+        budget: formData.budget,
+        timeline: formData.timeline
       })
-    }, 3000)
+      
+      setIsSubmitted(true)
+      
+      // Reset form after success
+      setTimeout(() => {
+        setIsSubmitted(false)
+        setFormData({
+          name: '',
+          email: '',
+          subject: '',
+          message: '',
+          budget: '',
+          timeline: ''
+        })
+      }, 3000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to send message. Please try again.')
+      console.error('Contact form error:', err)
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleInputChange = (field: keyof ContactForm, value: string) => {
@@ -131,6 +147,18 @@ export default function ContactPage() {
             <div className="bg-white/5 backdrop-blur-sm rounded-3xl border border-white/10 p-8 md:p-12">
               <h2 className="text-3xl font-medium text-white mb-8">Send a Message</h2>
               
+              {/* Error Message */}
+              {error && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="mb-6 p-4 bg-red-900/20 border border-red-500/30 rounded-xl text-red-300 flex items-center gap-2"
+                >
+                  <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                  {error}
+                </motion.div>
+              )}
+              
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Name and Email */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -141,7 +169,8 @@ export default function ContactPage() {
                       required
                       value={formData.name}
                       onChange={(e) => handleInputChange('name', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-teal-400/50 focus:bg-white/15 transition-all duration-300"
+                      disabled={isSubmitting || isSubmitted}
+                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-teal-400/50 focus:bg-white/15 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       placeholder="Your full name"
                     />
                   </div>
@@ -153,7 +182,8 @@ export default function ContactPage() {
                       required
                       value={formData.email}
                       onChange={(e) => handleInputChange('email', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-teal-400/50 focus:bg-white/15 transition-all duration-300"
+                      disabled={isSubmitting || isSubmitted}
+                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-teal-400/50 focus:bg-white/15 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                       placeholder="your@email.com"
                     />
                   </div>
@@ -167,7 +197,8 @@ export default function ContactPage() {
                     required
                     value={formData.subject}
                     onChange={(e) => handleInputChange('subject', e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-teal-400/50 focus:bg-white/15 transition-all duration-300"
+                    disabled={isSubmitting || isSubmitted}
+                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-teal-400/50 focus:bg-white/15 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="What's this about?"
                   />
                 </div>
@@ -179,7 +210,8 @@ export default function ContactPage() {
                     <select
                       value={formData.budget}
                       onChange={(e) => handleInputChange('budget', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-teal-400/50"
+                      disabled={isSubmitting || isSubmitted}
+                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-teal-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="">Select budget range</option>
                       <option value="under-1k">Under $1,000</option>
@@ -195,7 +227,8 @@ export default function ContactPage() {
                     <select
                       value={formData.timeline}
                       onChange={(e) => handleInputChange('timeline', e.target.value)}
-                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-teal-400/50"
+                      disabled={isSubmitting || isSubmitted}
+                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-teal-400/50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="">Select timeline</option>
                       <option value="asap">ASAP</option>
@@ -215,7 +248,8 @@ export default function ContactPage() {
                     rows={6}
                     value={formData.message}
                     onChange={(e) => handleInputChange('message', e.target.value)}
-                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-teal-400/50 focus:bg-white/15 transition-all duration-300 resize-none"
+                    disabled={isSubmitting || isSubmitted}
+                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-teal-400/50 focus:bg-white/15 transition-all duration-300 resize-none disabled:opacity-50 disabled:cursor-not-allowed"
                     placeholder="Tell me about your project. What are your goals, challenges, and vision?"
                   />
                 </div>
@@ -237,7 +271,7 @@ export default function ContactPage() {
                   {isSubmitted ? (
                     <>
                       <CheckCircle className="w-5 h-5" />
-                      Message Sent!
+                      Message Sent Successfully!
                     </>
                   ) : isSubmitting ? (
                     <>
@@ -246,7 +280,7 @@ export default function ContactPage() {
                         transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
                         className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
                       />
-                      Sending...
+                      Sending Message...
                     </>
                   ) : (
                     <>
@@ -255,11 +289,24 @@ export default function ContactPage() {
                     </>
                   )}
                 </motion.button>
+
+                {/* Success Message */}
+                {isSubmitted && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center p-4 bg-green-900/20 border border-green-500/30 rounded-xl text-green-300"
+                  >
+                    <CheckCircle className="w-6 h-6 mx-auto mb-2" />
+                    <p className="font-medium">Thank you for your message!</p>
+                    <p className="text-sm text-green-400">I'll get back to you within 24 hours.</p>
+                  </motion.div>
+                )}
               </form>
             </div>
           </motion.div>
 
-          {/* Contact Info */}
+          {/* Contact Info - Keep existing sidebar */}
           <motion.div
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
