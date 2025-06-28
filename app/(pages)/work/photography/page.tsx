@@ -153,8 +153,9 @@ export default function PhotographyPage() {
 
       {/* Content Container - FIXED: Better spacing */}
       <div className="relative z-10 container mx-auto px-6 pt-6 pb-12">
+      <div className="mt-20">
         {/* Header */}
-        <motion.div
+                <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
@@ -473,6 +474,7 @@ export default function PhotographyPage() {
           </motion.div>
         </motion.div>
       )}
+    </div>
     </div>
   )
 }

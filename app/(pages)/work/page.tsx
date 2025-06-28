@@ -133,15 +133,15 @@ export default function WorkOverviewPage() {
         ))}
       </div>
 
-      {/* Content Container - FIXED: Better spacing */}
       <div className="relative z-10 container mx-auto px-6 pt-6 pb-12">
+        <div className="mt-20">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="mb-16 mt-16 text-center" // Added mt-16 for navbar spacing
-        >
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="mb-8" // Reduced margin
+            >
           <div className="flex items-center justify-center gap-4 mb-8">
             <Link
               href="/"
@@ -325,6 +325,7 @@ export default function WorkOverviewPage() {
           </div>
         </motion.div>
       </div>
+    </div>
     </div>
   )
 }
