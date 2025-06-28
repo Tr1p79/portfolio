@@ -3,6 +3,7 @@
 
 import { motion } from 'framer-motion'
 import { useState, useMemo, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import { 
   ArrowLeft, 
   Upload, 
@@ -18,17 +19,20 @@ import {
   Heart,
   Download,
   Grid,
-  List
+  List,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
-import Image from 'next/image'
+import AdminAuthGuard from '../../../../components/admin/AdminAuthGuard'
+import ImageUpload from '../../../../components/admin/ImageUpload'
+import { artworkAPI } from '../../../../../lib/database'
 
 interface PhotoUpload {
   id: string
-  file: File
-  preview: string
   title: string
   description: string
+  image_url: string
   category: string
   location: string
   camera: string
@@ -50,12 +54,14 @@ const photoCategories = [
   'Cultural'
 ]
 
-export default function PhotoUploadManager() {
+function PhotoUploadContent() {
   const [uploads, setUploads] = useState<PhotoUpload[]>([])
-  const [dragActive, setDragActive] = useState(false)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle')
+  const [error, setError] = useState('')
+  const router = useRouter()
 
   // Memoize floating particles
   const floatingParticles = useMemo(() => {
@@ -68,54 +74,25 @@ export default function PhotoUploadManager() {
     }))
   }, [])
 
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true)
-    } else if (e.type === 'dragleave') {
-      setDragActive(false)
+  const createNewPhoto = (): PhotoUpload => {
+    return {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      title: '',
+      description: '',
+      image_url: '',
+      category: '',
+      location: '',
+      camera: '',
+      settings: '',
+      tags: [],
+      featured: false
     }
   }
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setDragActive(false)
-    
-    const files = Array.from(e.dataTransfer.files)
-    handleFiles(files)
-  }
-
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    handleFiles(files)
-  }
-
-  const handleFiles = (files: File[]) => {
-    const imageFiles = files.filter(file => file.type.startsWith('image/'))
-    
-    imageFiles.forEach(file => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const newUpload: PhotoUpload = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          file,
-          preview: e.target?.result as string,
-          title: file.name.replace(/\.[^/.]+$/, ''),
-          description: '',
-          category: '',
-          location: '',
-          camera: '',
-          settings: '',
-          tags: [],
-          featured: false
-        }
-        
-        setUploads(prev => [...prev, newUpload])
-      }
-      reader.readAsDataURL(file)
-    })
+  const addNewPhoto = () => {
+    const newPhoto = createNewPhoto()
+    setUploads(prev => [...prev, newPhoto])
+    setSelectedPhoto(newPhoto.id)
   }
 
   const updatePhoto = (id: string, updates: Partial<PhotoUpload>) => {
@@ -143,10 +120,50 @@ export default function PhotoUploadManager() {
     })
   }
 
-  const handleSaveAll = () => {
-    // In a real app, this would upload to your backend/cloud storage
-    console.log('Uploading photos:', uploads)
-    // Show success message and redirect
+  const handleSaveAll = async () => {
+    const validPhotos = uploads.filter(photo => 
+      photo.image_url && photo.title && photo.category
+    )
+
+    if (validPhotos.length === 0) {
+      setError('Please add at least one photo with title, image, and category')
+      return
+    }
+
+    setIsSaving(true)
+    setError('')
+    setSaveStatus('idle')
+
+    try {
+      // Save each photo to database
+      for (const photo of validPhotos) {
+        await artworkAPI.createArtwork({
+          title: photo.title,
+          description: photo.description,
+          image_url: photo.image_url,
+          category: 'photography',
+          subcategory: photo.category,
+          location: photo.location,
+          camera: photo.camera,
+          settings: photo.settings,
+          tags: photo.tags,
+          featured: photo.featured
+        })
+      }
+
+      setSaveStatus('success')
+      
+      // Redirect after short delay
+      setTimeout(() => {
+        router.push('/admin/photos')
+      }, 1500)
+
+    } catch (err: any) {
+      setError(err.message || 'Failed to save photos')
+      setSaveStatus('error')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const selectedPhotoData = uploads.find(p => p.id === selectedPhoto)
@@ -207,6 +224,13 @@ export default function PhotoUploadManager() {
             </div>
             
             <div className="flex gap-3">
+              {saveStatus === 'success' && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-green-900/20 border border-green-500/30 text-green-300 rounded-full">
+                  <CheckCircle className="w-4 h-4" />
+                  Saved successfully!
+                </div>
+              )}
+
               {/* View Mode Toggle */}
               <div className="flex gap-1 bg-white/10 rounded-full p-1">
                 <button
@@ -227,70 +251,58 @@ export default function PhotoUploadManager() {
                 </button>
               </div>
               
+              <button
+                onClick={addNewPhoto}
+                className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-full hover:bg-white/20 border border-white/20 transition-all duration-300"
+              >
+                <Upload className="w-4 h-4" />
+                Add Photo
+              </button>
+
               {uploads.length > 0 && (
                 <button
                   onClick={handleSaveAll}
-                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600/30 text-white rounded-full hover:bg-emerald-600/40 border border-emerald-400/50 transition-all duration-300"
+                  disabled={isSaving}
+                  className="flex items-center gap-2 px-6 py-3 bg-emerald-600/30 text-white rounded-full hover:bg-emerald-600/40 border border-emerald-400/50 transition-all duration-300 disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" />
-                  Upload All ({uploads.length})
+                  {isSaving ? 'Saving...' : `Save All (${uploads.length})`}
                 </button>
               )}
             </div>
           </div>
         </motion.div>
 
-        {/* Upload Zone */}
+        {/* Error Message */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 p-4 bg-red-900/20 border border-red-500/30 rounded-xl text-red-300 flex items-center gap-2"
+          >
+            <AlertCircle className="w-5 h-5 flex-shrink-0" />
+            {error}
+          </motion.div>
+        )}
+
+        {/* Empty State */}
         {uploads.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1 }}
-            className="mb-12"
+            className="text-center py-20"
           >
-            <div
-              className={`relative border-2 border-dashed rounded-3xl p-12 text-center transition-all duration-300 ${
-                dragActive 
-                  ? 'border-emerald-400/70 bg-emerald-400/10' 
-                  : 'border-white/30 hover:border-emerald-400/50 hover:bg-white/5'
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
+            <Camera className="w-20 h-20 text-emerald-400/50 mx-auto mb-6" />
+            <h3 className="text-2xl font-medium text-white mb-4">No Photos Added</h3>
+            <p className="text-gray-400 mb-8">Start by adding your first photo to the gallery</p>
+            <button
+              onClick={addNewPhoto}
+              className="inline-flex items-center gap-2 px-8 py-4 bg-emerald-600/30 text-white rounded-full hover:bg-emerald-600/40 border border-emerald-400/50 transition-all duration-300"
             >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*"
-                onChange={handleFileInput}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
-              
-              <div className="space-y-6">
-                <div className="w-20 h-20 bg-emerald-600/20 rounded-2xl flex items-center justify-center mx-auto">
-                  <Camera className="w-10 h-10 text-emerald-400" />
-                </div>
-                
-                <div>
-                  <h3 className="text-2xl font-medium text-white mb-2">
-                    Drop photos here or click to browse
-                  </h3>
-                  <p className="text-gray-400">
-                    Support for JPG, PNG, WebP files. Multiple files supported.
-                  </p>
-                </div>
-                
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600/30 text-white rounded-full hover:bg-emerald-600/40 border border-emerald-400/50 transition-all duration-300"
-                >
-                  <Upload className="w-5 h-5" />
-                  Choose Files
-                </button>
-              </div>
-            </div>
+              <Upload className="w-5 h-5" />
+              Add Your First Photo
+            </button>
           </motion.div>
         )}
 
@@ -304,25 +316,6 @@ export default function PhotoUploadManager() {
           >
             {/* Photos List */}
             <div className="lg:col-span-3">
-              {/* Add More Button */}
-              <div className="mb-6">
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-full hover:bg-white/20 border border-white/20 transition-all duration-300"
-                >
-                  <Upload className="w-4 h-4" />
-                  Add More Photos
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleFileInput}
-                  className="hidden"
-                />
-              </div>
-
               {viewMode === 'grid' ? (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                   {uploads.map((photo, index) => (
@@ -338,28 +331,33 @@ export default function PhotoUploadManager() {
                       }`}
                       onClick={() => setSelectedPhoto(photo.id)}
                     >
-                      <div className="relative aspect-[4/3] overflow-hidden">
-                        <Image
-                          src={photo.preview}
-                          alt={photo.title}
-                          fill
-                          className="object-cover"
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            removePhoto(photo.id)
-                          }}
-                          className="absolute top-2 right-2 p-1 bg-red-600/80 text-white rounded-full hover:bg-red-600 transition-colors"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                        {photo.featured && (
-                          <div className="absolute top-2 left-2 px-2 py-1 bg-emerald-600 text-white text-xs rounded-full">
-                            Featured
-                          </div>
-                        )}
-                      </div>
+                      {photo.image_url ? (
+                        <div className="relative aspect-[4/3] overflow-hidden">
+                          <img
+                            src={photo.image_url}
+                            alt={photo.title}
+                            className="w-full h-full object-cover"
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              removePhoto(photo.id)
+                            }}
+                            className="absolute top-2 right-2 p-1 bg-red-600/80 text-white rounded-full hover:bg-red-600 transition-colors"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                          {photo.featured && (
+                            <div className="absolute top-2 left-2 px-2 py-1 bg-emerald-600 text-white text-xs rounded-full">
+                              Featured
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="aspect-[4/3] flex items-center justify-center bg-white/10">
+                          <ImageIcon className="w-12 h-12 text-gray-400" />
+                        </div>
+                      )}
                       <div className="p-4">
                         <h3 className="text-white font-medium mb-1 truncate">{photo.title || 'Untitled'}</h3>
                         <p className="text-gray-400 text-sm">{photo.category || 'Uncategorized'}</p>
@@ -384,18 +382,21 @@ export default function PhotoUploadManager() {
                     >
                       <div className="flex gap-4">
                         <div className="relative w-20 h-20 rounded-lg overflow-hidden flex-shrink-0">
-                          <Image
-                            src={photo.preview}
-                            alt={photo.title}
-                            fill
-                            className="object-cover"
-                          />
+                          {photo.image_url ? (
+                            <img
+                              src={photo.image_url}
+                              alt={photo.title}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full bg-white/10 flex items-center justify-center">
+                              <ImageIcon className="w-8 h-8 text-gray-400" />
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1">
                           <h3 className="text-white font-medium mb-1">{photo.title || 'Untitled'}</h3>
-                          <p className="text-gray-400 text-sm mb-2">{photo.file.name}</p>
                           <div className="flex items-center gap-4 text-xs text-gray-400">
-                            <span>{(photo.file.size / 1024 / 1024).toFixed(1)} MB</span>
                             <span>{photo.category || 'Uncategorized'}</span>
                             {photo.featured && <span className="text-emerald-400">Featured</span>}
                           </div>
@@ -428,6 +429,18 @@ export default function PhotoUploadManager() {
                   <h3 className="text-white font-medium mb-6">Edit Photo Details</h3>
                   
                   <div className="space-y-4">
+                    {/* Image Upload */}
+                    <div>
+                      <label className="block text-white text-sm font-medium mb-2">Photo</label>
+                      <ImageUpload
+                        currentImage={selectedPhotoData.image_url}
+                        onUploadComplete={(url) => updatePhoto(selectedPhotoData.id, { image_url: url })}
+                        onRemove={() => updatePhoto(selectedPhotoData.id, { image_url: '' })}
+                        folder="photos"
+                        className="aspect-[4/3]"
+                      />
+                    </div>
+
                     {/* Title */}
                     <div>
                       <label className="block text-white text-sm font-medium mb-2">Title</label>
@@ -436,6 +449,7 @@ export default function PhotoUploadManager() {
                         value={selectedPhotoData.title}
                         onChange={(e) => updatePhoto(selectedPhotoData.id, { title: e.target.value })}
                         className="w-full px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-400/50 text-sm"
+                        placeholder="Photo title"
                       />
                     </div>
 
@@ -447,6 +461,7 @@ export default function PhotoUploadManager() {
                         onChange={(e) => updatePhoto(selectedPhotoData.id, { description: e.target.value })}
                         rows={3}
                         className="w-full px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-emerald-400/50 text-sm resize-none"
+                        placeholder="Photo description"
                       />
                     </div>
 
@@ -560,24 +575,6 @@ export default function PhotoUploadManager() {
                       </label>
                     </div>
                   </div>
-
-                  {/* Photo Preview */}
-                  <div className="mt-6 pt-6 border-t border-white/10">
-                    <div className="relative aspect-[4/3] rounded-lg overflow-hidden mb-4">
-                      <Image
-                        src={selectedPhotoData.preview}
-                        alt={selectedPhotoData.title}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    
-                    <div className="text-xs text-gray-400 space-y-1">
-                      <div>Size: {(selectedPhotoData.file.size / 1024 / 1024).toFixed(1)} MB</div>
-                      <div>Type: {selectedPhotoData.file.type}</div>
-                      <div>File: {selectedPhotoData.file.name}</div>
-                    </div>
-                  </div>
                 </motion.div>
               ) : (
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 text-center">
@@ -590,5 +587,13 @@ export default function PhotoUploadManager() {
         )}
       </div>
     </div>
+  )
+}
+
+export default function PhotoUploadManager() {
+  return (
+    <AdminAuthGuard>
+      <PhotoUploadContent />
+    </AdminAuthGuard>
   )
 }
