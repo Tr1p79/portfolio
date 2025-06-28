@@ -132,12 +132,42 @@ export const blogAPI = {
   // Delete blog post
   async deletePost(id: string): Promise<void> {
     const supabase = getClient()
-    const { error } = await supabase
-      .from('blog_posts')
-      .delete()
-      .eq('id', id)
+    
+    try {
+      // 1. Get post data first to find featured image
+      const allPosts = await this.getAllPosts()
+      const post = allPosts.find(p => p.id === id)
+      
+      // 2. Delete featured image from storage if exists
+      if (post?.featured_image) {
+        const urlParts = post.featured_image.split('/')
+        const fileName = urlParts[urlParts.length - 1]
+        const folder = urlParts[urlParts.length - 2] || 'blog'
+        const filePath = `${folder}/${fileName}`
+        
+        console.log('Deleting blog featured image:', filePath)
+        
+        const { error: storageError } = await supabase.storage
+          .from('images')
+          .remove([filePath])
+        
+        if (storageError) {
+          console.error('Blog image deletion error:', storageError)
+        }
+      }
+      
+      // 3. Delete from database
+      const { error: dbError } = await supabase
+        .from('blog_posts')
+        .delete()
+        .eq('id', id)
 
-    if (error) throw error
+      if (dbError) throw dbError
+      
+    } catch (error) {
+      console.error('Error deleting blog post:', error)
+      throw error
+    }
   },
 
   // Increment view count
@@ -211,12 +241,46 @@ export const artworkAPI = {
   // Delete artwork
   async deleteArtwork(id: string): Promise<void> {
     const supabase = getClient()
-    const { error } = await supabase
-      .from('artworks')
-      .delete()
-      .eq('id', id)
+    
+    try {
+      // 1. Get artwork data first to find image URL
+      const artwork = await this.getArtworkById(id)
+      
+      // 2. Delete from storage if image exists
+      if (artwork?.image_url) {
+        // Extract the file path from the full URL
+        // URL format: https://project.supabase.co/storage/v1/object/public/images/folder/filename.jpg
+        const urlParts = artwork.image_url.split('/')
+        const fileName = urlParts[urlParts.length - 1] // Get filename
+        const folder = urlParts[urlParts.length - 2] // Get folder (artwork, photos, etc.)
+        const filePath = `${folder}/${fileName}`
+        
+        console.log('Deleting file from storage:', filePath)
+        
+        const { error: storageError } = await supabase.storage
+          .from('images')
+          .remove([filePath])
+        
+        if (storageError) {
+          console.error('Storage deletion error:', storageError)
+          // Don't throw here - continue with database deletion even if storage fails
+        }
+      }
+      
+      // 3. Delete from database
+      const { error: dbError } = await supabase
+        .from('artworks')
+        .delete()
+        .eq('id', id)
 
-    if (error) throw error
+      if (dbError) throw dbError
+      
+      console.log('Artwork deleted successfully:', id)
+      
+    } catch (error) {
+      console.error('Error deleting artwork:', error)
+      throw error
+    }
   }
 }
 

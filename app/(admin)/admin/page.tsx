@@ -4,6 +4,7 @@
 import { motion } from 'framer-motion'
 import { useState, useMemo, useEffect } from 'react'
 import { 
+  Palette,
   BarChart3, 
   FileText, 
   Image, 
@@ -178,9 +179,9 @@ function AdminDashboardContent() {
       color: 'from-blue-500 to-cyan-500'
     },
     {
-      title: 'Upload 2D Art',
-      description: 'Add new artwork',
-      icon: Image,
+      title: 'Upload Artwork', // UNIFIED: Combined 2D/3D
+      description: 'Add 2D or 3D artwork',
+      icon: Palette, // Use Palette as primary icon
       href: '/admin/art/new',
       color: 'from-purple-500 to-pink-500'
     },
@@ -192,10 +193,10 @@ function AdminDashboardContent() {
       color: 'from-emerald-500 to-teal-500'
     },
     {
-      title: 'Upload 3D Model',
-      description: 'Add 3D artwork',
-      icon: Cuboid,
-      href: '/admin/3d/new',
+      title: 'Manage Content', // NEW: Content management hub
+      description: 'View all content',
+      icon: Settings,
+      href: '/admin/content', // Could redirect to a content overview page
       color: 'from-orange-500 to-red-500'
     }
   ]
@@ -384,24 +385,24 @@ function AdminDashboardContent() {
 
             {/* Content Overview */}
             <h2 className="text-2xl font-medium text-white mb-6">Content Overview</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {[
-                { label: 'Blog Posts', value: stats.blogPosts, icon: FileText, href: '/admin/blog' },
-                { label: '2D Artworks', value: stats.artPieces, icon: Image, href: '/admin/art' },
-                { label: 'Photos', value: stats.photos, icon: Camera, href: '/admin/photos' },
-                { label: '3D Models', value: stats.models3D, icon: Cuboid, href: '/admin/3d' }
-              ].map((item, index) => (
-                <Link key={item.label} href={item.href} className="group">
-                  <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4 hover:border-violet-400/30 transition-all duration-300 text-center">
-                    <item.icon className="w-8 h-8 text-violet-400 mx-auto mb-2" />
-                    <div className="text-xl font-bold text-white mb-1">
-                      {loading ? '...' : item.value}
-                    </div>
-                    <div className="text-gray-400 text-sm">{item.label}</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {[
+              { label: 'Blog Posts', value: stats.blogPosts, icon: FileText, href: '/admin/blog' },
+              { label: 'Artworks', value: stats.artPieces + stats.models3D, icon: Palette, href: '/admin/art' }, // COMBINED
+              { label: 'Photos', value: stats.photos, icon: Camera, href: '/admin/photos' },
+              { label: 'Total Views', value: stats.totalViews, icon: Eye, href: '/admin/analytics' }
+            ].map((item, index) => (
+              <Link key={item.label} href={item.href} className="group">
+                <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4 hover:border-violet-400/30 transition-all duration-300 text-center">
+                  <item.icon className="w-8 h-8 text-violet-400 mx-auto mb-2" />
+                  <div className="text-xl font-bold text-white mb-1">
+                    {loading ? '...' : item.value}
                   </div>
-                </Link>
-              ))}
-            </div>
+                  <div className="text-gray-400 text-sm">{item.label}</div>
+                </div>
+              </Link>
+            ))}
+          </div>
           </motion.div>
 
           {/* Recent Activity */}
