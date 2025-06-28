@@ -2,129 +2,129 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import { useState, useMemo } from 'react'
-import { ArrowLeft, ExternalLink, Eye, Heart, Download } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { ArrowLeft, ExternalLink, Eye, Heart, Grid, Search, Maximize2, Play } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
-
-interface ThreeDModel {
-  id: string
-  title: string
-  description: string
-  sketchfabId: string
-  thumbnail: string
-  category: string
-  likes: number
-  views: number
-  tags: string[]
-  featured: boolean
-}
-
-// Sample 3D models data - replace with your actual Sketchfab models
-const threeDModels: ThreeDModel[] = [
-  {
-    id: '1',
-    title: 'Cyberpunk Character',
-    description: 'A futuristic cyberpunk character with detailed textures and rigging.',
-    sketchfabId: 'your-sketchfab-model-id-1',
-    thumbnail: '/images/3d/cyberpunk-character.jpg',
-    category: 'Character',
-    likes: 234,
-    views: 1205,
-    tags: ['Character', 'Cyberpunk', 'Rigged'],
-    featured: true
-  },
-  {
-    id: '2',
-    title: 'Fantasy Sword',
-    description: 'An enchanted sword with magical particles and glowing effects.',
-    sketchfabId: 'your-sketchfab-model-id-2',
-    thumbnail: '/images/3d/fantasy-sword.jpg',
-    category: 'Props',
-    likes: 189,
-    views: 892,
-    tags: ['Weapon', 'Fantasy', 'VFX'],
-    featured: false
-  },
-  {
-    id: '3',
-    title: 'Sci-Fi Environment',
-    description: 'A detailed space station corridor with atmospheric lighting.',
-    sketchfabId: 'your-sketchfab-model-id-3',
-    thumbnail: '/images/3d/scifi-environment.jpg',
-    category: 'Environment',
-    likes: 445,
-    views: 2103,
-    tags: ['Environment', 'Sci-Fi', 'Lighting'],
-    featured: true
-  },
-  {
-    id: '4',
-    title: 'Mechanical Robot',
-    description: 'Industrial robot with complex mechanical details and animations.',
-    sketchfabId: 'your-sketchfab-model-id-4',
-    thumbnail: '/images/3d/mechanical-robot.jpg',
-    category: 'Character',
-    likes: 312,
-    views: 1567,
-    tags: ['Robot', 'Mechanical', 'Animated'],
-    featured: false
-  }
-]
+import { artworkAPI, Artwork } from '../../../../lib/database'
 
 export default function ThreeDWorkPage() {
-  const [selectedModel, setSelectedModel] = useState<ThreeDModel | null>(null)
-  const [filter, setFilter] = useState<string>('All')
-  
-  // Get unique categories
-  const categories = ['All', ...Array.from(new Set(threeDModels.map(model => model.category)))]
-  
-  // Filter models
-  const filteredModels = filter === 'All' 
-    ? threeDModels 
-    : threeDModels.filter(model => model.category === filter)
+  const [artworks, setArtworks] = useState<Artwork[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [selectedModel, setSelectedModel] = useState<Artwork | null>(null)
+  const [filter, setFilter] = useState('All')
+  const [searchTerm, setSearchTerm] = useState('')
 
-  // Memoize floating particles to prevent hydration issues
+  // Memoize floating particles for performance
   const floatingParticles = useMemo(() => {
-    return Array.from({ length: 15 }, (_, i) => ({
+    return Array.from({ length: 12 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
       top: Math.random() * 100,
-      duration: 4 + Math.random() * 3,
-      delay: Math.random() * 2,
+      duration: 25 + Math.random() * 10,
+      delay: Math.random() * 5,
     }))
   }, [])
 
+  // Load 3D artworks from database
+  useEffect(() => {
+    loadArtworks()
+  }, [])
+
+  const loadArtworks = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      const allArtworks = await artworkAPI.getArtworks()
+      // Filter for 3D category only
+      const threeDartworks = allArtworks.filter(art => art.category === '3d')
+      setArtworks(threeDartworks)
+      
+      // Auto-select first model if available
+      if (threeDartworks.length > 0) {
+        setSelectedModel(threeDartworks[0])
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to load 3D artworks')
+      console.error('Error loading 3D artworks:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Get unique subcategories for filtering - FIXED: Handle undefined subcategory
+  const categories = useMemo(() => {
+    const uniqueCategories = artworks
+      .map(art => art.subcategory)
+      .filter((category): category is string => Boolean(category))
+    return ['All', ...Array.from(new Set(uniqueCategories))]
+  }, [artworks])
+
+  // Filter artworks based on category and search - FIXED: Handle undefined subcategory
+  const filteredArtworks = useMemo(() => {
+    let filtered = artworks
+
+    // Category filter - FIXED: Properly handle undefined subcategory
+    if (filter !== 'All') {
+      filtered = filtered.filter(art => art.subcategory === filter)
+    }
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(art =>
+        art.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        art.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        art.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
+    }
+
+    return filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }, [artworks, filter, searchTerm])
+
+  // Update selected model when filter changes
+  useEffect(() => {
+    if (filteredArtworks.length > 0 && !filteredArtworks.find(art => art.id === selectedModel?.id)) {
+      setSelectedModel(filteredArtworks[0])
+    }
+  }, [filteredArtworks, selectedModel])
+
+  const handleModelSelect = (model: Artwork) => {
+    setSelectedModel(model)
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      {/* Background effects */}
+      {/* Background Effects */}
       <div className="absolute inset-0">
-        {/* Gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-purple-900/80 to-slate-900/90" />
         
-        {/* Floating particles */}
+        {/* Floating Particles */}
         {floatingParticles.map((particle) => (
           <motion.div
             key={particle.id}
-            className="absolute w-1 h-1 bg-purple-400/40 rounded-full"
+            className="absolute w-1 h-1 bg-purple-400/30 rounded-full"
             style={{
               left: `${particle.left}%`,
               top: `${particle.top}%`,
             }}
             animate={{
-              y: [0, -20, 0],
-              opacity: [0.2, 0.8, 0.2],
+              y: [0, -120, 0],
+              opacity: [0.3, 0.8, 0.3],
+              scale: [0.5, 2, 0.5],
             }}
             transition={{
               duration: particle.duration,
               repeat: Infinity,
+              ease: "linear",
               delay: particle.delay,
             }}
           />
         ))}
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-12">
+      {/* Content Container */}
+      <div className="relative z-10 container mx-auto px-6 py-12">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -132,38 +132,53 @@ export default function ThreeDWorkPage() {
           transition={{ duration: 0.8 }}
           className="mb-12"
         >
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition-colors mb-6"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Link>
-          
-          <h1 className="text-5xl md:text-7xl font-light text-white mb-6 tracking-tight">
-            3D Works
-          </h1>
-          <p className="text-xl text-gray-300 max-w-3xl">
-            Immersive 3D models, characters, and environments crafted with attention to detail and technical excellence.
-          </p>
+          <div className="flex items-center gap-4 mb-6">
+            <Link
+              href="/work"
+              className="p-3 bg-white/10 backdrop-blur-sm rounded-full text-purple-300 hover:text-white border border-white/20 hover:border-purple-400/50 transition-all duration-300"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
+            <div>
+              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 via-purple-300 to-purple-500 bg-clip-text text-transparent mb-2">
+                3D Models & Scenes
+              </h1>
+              <p className="text-gray-300 text-lg">
+                Interactive 3D models, characters, and environments
+              </p>
+            </div>
+          </div>
         </motion.div>
 
-        {/* Category Filter */}
+        {/* Controls */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="mb-12"
+          transition={{ duration: 0.8, delay: 0.1 }}
+          className="mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between"
         >
-          <div className="flex flex-wrap gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search 3D models..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-12 pr-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-gray-400 focus:outline-none focus:border-purple-400/50 transition-all duration-300 w-full sm:w-80"
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="flex gap-2 flex-wrap">
             {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => setFilter(category)}
-                className={`px-6 py-3 rounded-full transition-all duration-300 backdrop-blur-sm border ${
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                   filter === category
-                    ? 'bg-purple-600/30 border-purple-400/50 text-white shadow-lg shadow-purple-500/25'
-                    : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
+                    ? 'bg-purple-600/30 border border-purple-400/50 text-white'
+                    : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-purple-400/30'
                 }`}
               >
                 {category}
@@ -172,208 +187,251 @@ export default function ThreeDWorkPage() {
           </div>
         </motion.div>
 
-        {/* Models Grid */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12"
-        >
-          {filteredModels.map((model, index) => (
+        {/* Loading State */}
+        {loading && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-20"
+          >
+            <div className="w-16 h-16 border-4 border-purple-400/30 border-t-purple-400 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-300">Loading 3D models...</p>
+          </motion.div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-4 bg-red-900/20 border border-red-500/30 rounded-xl text-red-300"
+          >
+            {error}
+          </motion.div>
+        )}
+
+        {/* No Results */}
+        {!loading && !error && filteredArtworks.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-20"
+          >
+            <Grid className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-xl text-gray-300 mb-2">No 3D models found</h3>
+            <p className="text-gray-500">
+              {searchTerm || filter !== 'All' 
+                ? 'Try adjusting your search or filters'
+                : 'No 3D models have been uploaded yet'
+              }
+            </p>
+          </motion.div>
+        )}
+
+        {/* Main Content - Only show if we have artworks */}
+        {!loading && !error && filteredArtworks.length > 0 && (
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+            {/* 3D Viewer - Left/Top Section */}
             <motion.div
-              key={model.id}
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              whileHover={{ y: -8 }}
-              className="group cursor-pointer"
-              onClick={() => setSelectedModel(model)}
+              transition={{ duration: 0.8, delay: 0.2 }}
+              className="xl:col-span-2 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden"
             >
-              <div className="relative bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden shadow-2xl hover:shadow-purple-500/20 hover:border-purple-400/30 transition-all duration-500">
-                {/* Featured badge */}
-                {model.featured && (
-                  <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-medium rounded-full">
-                    Featured
-                  </div>
-                )}
-
-                {/* Thumbnail */}
-                <div className="relative h-64 overflow-hidden">
-                  <Image
-                    src={model.thumbnail}
-                    alt={model.title}
-                    fill
-                    className="object-cover transition-transform duration-700 group-hover:scale-110"
-                  />
-                  
-                  {/* Overlay */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  
-                  {/* View button */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <div className="px-6 py-3 bg-white/20 backdrop-blur-sm rounded-full text-white font-medium flex items-center gap-2">
-                      <Eye className="w-4 h-4" />
-                      View Model
+              {selectedModel ? (
+                <div className="relative">
+                  {/* Sketchfab Viewer */}
+                  {selectedModel.sketchfab_id ? (
+                    <div className="relative aspect-video">
+                      <iframe
+                        title={selectedModel.title}
+                        className="w-full h-full"
+                        src={`https://sketchfab.com/models/${selectedModel.sketchfab_id}/embed?autostart=1&ui_theme=dark&ui_hint=0&ui_controls=1&ui_infos=0&ui_inspector=0&ui_stop=0&ui_watermark=0`}
+                        frameBorder="0"
+                        allow="autoplay; fullscreen; xr-spatial-tracking"
+                        allowFullScreen
+                      />
+                      
+                      {/* Overlay with model info */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-6">
+                        <div className="flex items-end justify-between">
+                          <div>
+                            <h2 className="text-2xl font-bold text-white mb-2">
+                              {selectedModel.title}
+                            </h2>
+                            {selectedModel.description && (
+                              <p className="text-gray-300 mb-3 max-w-2xl">
+                                {selectedModel.description}
+                              </p>
+                            )}
+                            <div className="flex items-center gap-4 text-sm text-gray-400">
+                              <span className="flex items-center gap-1">
+                                <Eye className="w-4 h-4" />
+                                {selectedModel.views} views
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Heart className="w-4 h-4" />
+                                {selectedModel.likes} likes
+                              </span>
+                              {selectedModel.year && (
+                                <span>{selectedModel.year}</span>
+                              )}
+                            </div>
+                          </div>
+                          
+                          <a
+                            href={`https://sketchfab.com/3d-models/${selectedModel.sketchfab_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 px-4 py-2 bg-purple-600/30 border border-purple-400/50 text-white rounded-full hover:bg-purple-600/40 transition-all duration-300"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            View on Sketchfab
+                          </a>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className="p-6">
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-xl font-medium text-white group-hover:text-gray-100 transition-colors">
-                      {model.title}
-                    </h3>
-                    <ExternalLink className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
-                  </div>
+                  ) : (
+                    // Fallback for models without Sketchfab ID
+                    <div className="aspect-video flex items-center justify-center bg-gradient-to-br from-gray-800 to-gray-900">
+                      <div className="text-center">
+                        <Maximize2 className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                        <h3 className="text-xl text-gray-300 mb-2">{selectedModel.title}</h3>
+                        <p className="text-gray-500">3D viewer not available</p>
+                      </div>
+                    </div>
+                  )}
                   
-                  <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                    {model.description}
-                  </p>
-
                   {/* Tags */}
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {model.tags.slice(0, 3).map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-2 py-1 bg-white/10 text-gray-300 text-xs rounded-full"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Stats */}
-                  <div className="flex items-center justify-between text-sm text-gray-400">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-1">
-                        <Heart className="w-4 h-4" />
-                        {model.likes}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Eye className="w-4 h-4" />
-                        {model.views}
+                  {selectedModel.tags.length > 0 && (
+                    <div className="p-6 border-t border-white/10">
+                      <div className="flex flex-wrap gap-2">
+                        {selectedModel.tags.map((tag) => (
+                          <span
+                            key={tag}
+                            className="px-3 py-1 bg-purple-500/20 text-purple-300 text-sm rounded-full border border-purple-400/30"
+                          >
+                            {tag}
+                          </span>
+                        ))}
                       </div>
                     </div>
-                    <span className="text-purple-400">{model.category}</span>
+                  )}
+                </div>
+              ) : (
+                <div className="aspect-video flex items-center justify-center">
+                  <div className="text-center">
+                    <Play className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                    <p className="text-gray-400">Select a 3D model to view</p>
                   </div>
                 </div>
+              )}
+            </motion.div>
 
-                {/* Magical sparkles on hover */}
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                  {[...Array(3)].map((_, i) => (
+            {/* Model List - Right/Bottom Section */}
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.8, delay: 0.3 }}
+              className="xl:col-span-1 bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden"
+            >
+              <div className="p-6 border-b border-white/10">
+                <h3 className="text-xl font-semibold text-white mb-2">
+                  3D Models ({filteredArtworks.length})
+                </h3>
+                <p className="text-gray-400 text-sm">
+                  Click to view in 3D viewer
+                </p>
+              </div>
+              
+              <div className="max-h-[600px] overflow-y-auto custom-scrollbar">
+                <div className="p-4 space-y-3">
+                  {filteredArtworks.map((model) => (
                     <motion.div
-                      key={i}
-                      className="absolute w-1 h-1 bg-white rounded-full"
-                      style={{
-                        left: `${i * 8}px`,
-                        top: `${i * 6}px`,
-                      }}
-                      animate={{
-                        opacity: [0, 1, 0],
-                        scale: [0, 1, 0],
-                      }}
-                      transition={{
-                        duration: 1,
-                        delay: i * 0.2,
-                        repeat: Infinity,
-                        repeatDelay: 1
-                      }}
-                    />
+                      key={model.id}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.5 }}
+                      onClick={() => handleModelSelect(model)}
+                      className={`group relative p-4 rounded-xl border cursor-pointer transition-all duration-300 ${
+                        selectedModel?.id === model.id
+                          ? 'bg-purple-600/20 border-purple-400/50'
+                          : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-purple-400/30'
+                      }`}
+                    >
+                      <div className="flex gap-3">
+                        {/* Thumbnail */}
+                        <div className="relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0">
+                          <Image
+                            src={model.image_url}
+                            alt={model.title}
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                          />
+                          {model.sketchfab_id && (
+                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                              <Play className="w-4 h-4 text-white" />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-white text-sm mb-1 truncate">
+                            {model.title}
+                          </h4>
+                          {model.description && (
+                            <p className="text-gray-400 text-xs mb-2 line-clamp-2">
+                              {model.description}
+                            </p>
+                          )}
+                          
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <div className="flex items-center gap-2">
+                              <span className="flex items-center gap-1">
+                                <Eye className="w-3 h-3" />
+                                {model.views}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <Heart className="w-3 h-3" />
+                                {model.likes}
+                              </span>
+                            </div>
+                            {model.featured && (
+                              <span className="px-2 py-0.5 bg-purple-500/30 text-purple-300 rounded-full">
+                                Featured
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
                   ))}
                 </div>
               </div>
             </motion.div>
-          ))}
-        </motion.div>
-
-        {/* Call to action */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
-          className="text-center"
-        >
-          <div className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 text-gray-300 rounded-full backdrop-blur-sm border border-white/10">
-            <Download className="w-4 h-4" />
-            More models available on my Sketchfab profile
           </div>
-        </motion.div>
+        )}
       </div>
 
-      {/* Model Viewer Modal */}
-      {selectedModel && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6"
-          onClick={() => setSelectedModel(null)}
-        >
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ type: "spring", bounce: 0.3 }}
-            className="bg-white/10 backdrop-blur-xl rounded-2xl border border-white/20 max-w-6xl w-full max-h-[90vh] overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div className="p-6 border-b border-white/10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-2xl font-medium text-white mb-2">{selectedModel.title}</h2>
-                  <p className="text-gray-300">{selectedModel.description}</p>
-                </div>
-                <button
-                  onClick={() => setSelectedModel(null)}
-                  className="text-gray-400 hover:text-white transition-colors"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Sketchfab Embed */}
-            <div className="relative h-96 md:h-[500px]">
-              <iframe
-                src={`https://sketchfab.com/models/${selectedModel.sketchfabId}/embed?autostart=1&ui_theme=dark`}
-                frameBorder="0"
-                allowFullScreen
-                className="w-full h-full"
-                title={selectedModel.title}
-              />
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-6 border-t border-white/10">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-6">
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Heart className="w-4 h-4" />
-                    {selectedModel.likes} likes
-                  </div>
-                  <div className="flex items-center gap-2 text-gray-300">
-                    <Eye className="w-4 h-4" />
-                    {selectedModel.views} views
-                  </div>
-                </div>
-                <a
-                  href={`https://sketchfab.com/3d-models/${selectedModel.sketchfabId}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg transition-colors"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  View on Sketchfab
-                </a>
-              </div>
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
+      {/* Custom Scrollbar Styles */}
+      <style jsx>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(147, 51, 234, 0.5);
+          border-radius: 3px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(147, 51, 234, 0.7);
+        }
+      `}</style>
     </div>
   )
 }

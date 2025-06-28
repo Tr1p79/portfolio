@@ -4,61 +4,44 @@
 import { motion } from 'framer-motion'
 import { useState, useMemo, useEffect } from 'react'
 import { 
-  Palette,
-  BarChart3, 
+  Users, 
   FileText, 
   Image, 
   Camera, 
-  Cuboid, 
-  User, 
+  MessageSquare, 
+  BarChart3, 
   Settings, 
   Plus,
   Eye,
-  Edit,
-  Trash2,
-  TrendingUp,
   Heart,
-  MessageSquare,
-  Mail,
-  RefreshCw
+  TrendingUp,
+  Activity,
+  Palette,
+  Cuboid
 } from 'lucide-react'
 import Link from 'next/link'
 import AdminAuthGuard from '../../components/admin/AdminAuthGuard'
-import { blogAPI, artworkAPI, contactAPI, analyticsAPI } from '../../../lib/database'
+import { blogAPI, artworkAPI, contactAPI } from '../../../lib/database'
 
 interface DashboardStats {
+  totalPosts: number
+  totalArtworks: number
+  totalPhotos: number
+  totalContacts: number
   totalViews: number
   totalLikes: number
-  totalComments: number
-  blogPosts: number
-  artPieces: number
-  photos: number
-  models3D: number
-  contactSubmissions: number
 }
 
-interface RecentActivity {
-  id: string
-  type: 'contact' | 'blog' | 'artwork' | 'view'
-  content: string
-  timestamp: string
-  user?: string
-}
-
-function AdminDashboardContent() {
+function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats>({
+    totalPosts: 0,
+    totalArtworks: 0,
+    totalPhotos: 0,
+    totalContacts: 0,
     totalViews: 0,
-    totalLikes: 0,
-    totalComments: 0,
-    blogPosts: 0,
-    artPieces: 0,
-    photos: 0,
-    models3D: 0,
-    contactSubmissions: 0
+    totalLikes: 0
   })
-  const [recentActivity, setRecentActivity] = useState<RecentActivity[]>([])
   const [loading, setLoading] = useState(true)
-  const [lastUpdated, setLastUpdated] = useState<Date>(new Date())
 
   // Memoize floating particles
   const floatingParticles = useMemo(() => {
@@ -66,410 +49,330 @@ function AdminDashboardContent() {
       id: i,
       left: Math.random() * 100,
       top: Math.random() * 100,
-      duration: 15 + Math.random() * 10,
-      delay: Math.random() * 5,
+      duration: 25 + Math.random() * 15,
+      delay: Math.random() * 10,
     }))
   }, [])
 
   useEffect(() => {
-    loadDashboardData()
+    loadStats()
   }, [])
 
-  const loadDashboardData = async () => {
+  const loadStats = async () => {
     setLoading(true)
     try {
-      // Load all data in parallel
-      const [
-        blogPosts,
-        artworks,
-        contacts,
-        pageViews
-      ] = await Promise.all([
-        blogAPI.getAllPosts(),
-        artworkAPI.getArtworks(),
-        contactAPI.getSubmissions(),
-        analyticsAPI.getPageViews(30)
+      const [posts, artworks, contacts] = await Promise.all([
+        blogAPI.getAllPosts().catch(() => []),
+        artworkAPI.getArtworks().catch(() => []),
+        contactAPI.getSubmissions().catch(() => [])
       ])
 
-      // Calculate stats
-      const totalLikes = blogPosts.reduce((sum, post) => sum + post.likes, 0) + 
-                        artworks.reduce((sum, art) => sum + art.likes, 0)
-      const totalViews = blogPosts.reduce((sum, post) => sum + post.views, 0) + 
-                        artworks.reduce((sum, art) => sum + art.views, 0) + 
-                        pageViews.length
-
-      const photos = artworks.filter(art => art.category === 'photography').length
-      const models3D = artworks.filter(art => art.category === '3d').length
-      const artPieces = artworks.filter(art => art.category === '2d').length
+      const totalViews = artworks.reduce((sum, artwork) => sum + artwork.views, 0)
+      const totalLikes = artworks.reduce((sum, artwork) => sum + artwork.likes, 0)
+      const photos = artworks.filter(art => art.category === 'photography')
+      const art = artworks.filter(art => art.category === '2d' || art.category === '3d')
 
       setStats({
+        totalPosts: posts.length,
+        totalArtworks: art.length,
+        totalPhotos: photos.length,
+        totalContacts: contacts.length,
         totalViews,
-        totalLikes,
-        totalComments: 0, // You can add comments later
-        blogPosts: blogPosts.length,
-        artPieces,
-        photos,
-        models3D,
-        contactSubmissions: contacts.length
+        totalLikes
       })
-
-      // Create recent activity from various sources
-      const activities: RecentActivity[] = []
-
-      // Recent contact submissions
-      contacts.slice(0, 3).forEach(contact => {
-        activities.push({
-          id: contact.id,
-          type: 'contact',
-          content: `New contact from ${contact.name}: "${contact.subject}"`,
-          timestamp: formatTimeAgo(contact.created_at),
-          user: contact.name
-        })
-      })
-
-      // Recent blog posts
-      blogPosts.slice(0, 2).forEach(post => {
-        activities.push({
-          id: post.id,
-          type: 'blog',
-          content: `Published "${post.title}"`,
-          timestamp: formatTimeAgo(post.created_at)
-        })
-      })
-
-      // Recent artworks
-      artworks.slice(0, 2).forEach(artwork => {
-        activities.push({
-          id: artwork.id,
-          type: 'artwork',
-          content: `Added new ${artwork.category} artwork: "${artwork.title}"`,
-          timestamp: formatTimeAgo(artwork.created_at)
-        })
-      })
-
-      // Sort by most recent and take top 5
-      activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-      setRecentActivity(activities.slice(0, 5))
-      setLastUpdated(new Date())
-
     } catch (error) {
-      console.error('Error loading dashboard data:', error)
+      console.error('Error loading stats:', error)
     } finally {
       setLoading(false)
     }
   }
 
-  const formatTimeAgo = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
-    
-    if (diffInMinutes < 1) return 'Just now'
-    if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`
-    if (diffInMinutes < 1440) return `${Math.floor(diffInMinutes / 60)} hours ago`
-    return `${Math.floor(diffInMinutes / 1440)} days ago`
-  }
-
+  // FIXED: Unified quick actions with proper routing
   const quickActions = [
     {
-      title: 'New Blog Post',
-      description: 'Create a new article',
+      title: 'Write Blog Post',
+      description: 'Create a new blog article',
       icon: FileText,
       href: '/admin/blog/new',
-      color: 'from-blue-500 to-cyan-500'
+      color: 'from-blue-500 to-blue-600',
+      bgColor: 'bg-blue-500/10'
     },
     {
-      title: 'Upload Artwork', // UNIFIED: Combined 2D/3D
+      title: 'Upload Artwork',
       description: 'Add 2D or 3D artwork',
-      icon: Palette, // Use Palette as primary icon
+      icon: Palette,
       href: '/admin/art/new',
-      color: 'from-purple-500 to-pink-500'
+      color: 'from-purple-500 to-purple-600',
+      bgColor: 'bg-purple-500/10'
     },
     {
       title: 'Add Photos',
       description: 'Upload photography',
       icon: Camera,
       href: '/admin/photos/new',
-      color: 'from-emerald-500 to-teal-500'
+      color: 'from-emerald-500 to-emerald-600',
+      bgColor: 'bg-emerald-500/10'
     },
     {
-      title: 'Manage Content', // NEW: Content management hub
-      description: 'View all content',
-      icon: Settings,
-      href: '/admin/content', // Could redirect to a content overview page
-      color: 'from-orange-500 to-red-500'
+      title: 'View Messages',
+      description: 'Check contact submissions',
+      icon: MessageSquare,
+      href: '/admin/contact',
+      color: 'from-orange-500 to-orange-600',
+      bgColor: 'bg-orange-500/10'
     }
   ]
 
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'contact':
-        return <Mail className="w-4 h-4" />
-      case 'blog':
-        return <FileText className="w-4 h-4" />
-      case 'artwork':
-        return <Image className="w-4 h-4" />
-      case 'view':
-        return <Eye className="w-4 h-4" />
-      default:
-        return <BarChart3 className="w-4 h-4" />
+  const managementLinks = [
+    {
+      title: 'Blog Management',
+      description: `Manage ${stats.totalPosts} blog posts`,
+      icon: FileText,
+      href: '/admin/blog',
+      color: 'from-blue-500 to-cyan-500',
+      count: stats.totalPosts
+    },
+    {
+      title: 'Artwork Gallery',
+      description: `Manage ${stats.totalArtworks} artworks`,
+      icon: Palette,
+      href: '/admin/art',
+      color: 'from-purple-500 to-pink-500',
+      count: stats.totalArtworks
+    },
+    {
+      title: 'Photo Gallery',
+      description: `Manage ${stats.totalPhotos} photos`,
+      icon: Camera,
+      href: '/admin/photos',
+      color: 'from-emerald-500 to-teal-500',
+      count: stats.totalPhotos
+    },
+    {
+      title: 'Contact Messages',
+      description: `${stats.totalContacts} submissions`,
+      icon: MessageSquare,
+      href: '/admin/contact',
+      color: 'from-orange-500 to-red-500',
+      count: stats.totalContacts
     }
-  }
+  ]
 
-  const getActivityColor = (type: string) => {
-    switch (type) {
-      case 'contact':
-        return 'text-green-400'
-      case 'blog':
-        return 'text-blue-400'
-      case 'artwork':
-        return 'text-purple-400'
-      case 'view':
-        return 'text-yellow-400'
-      default:
-        return 'text-gray-400'
+  const statsCards = [
+    {
+      title: 'Total Content',
+      value: stats.totalPosts + stats.totalArtworks + stats.totalPhotos,
+      icon: FileText,
+      color: 'from-blue-500 to-blue-600',
+      description: 'Blog posts, artworks & photos'
+    },
+    {
+      title: 'Total Views',
+      value: stats.totalViews,
+      icon: Eye,
+      color: 'from-purple-500 to-purple-600',
+      description: 'Across all content'
+    },
+    {
+      title: 'Total Likes',
+      value: stats.totalLikes,
+      icon: Heart,
+      color: 'from-red-500 to-pink-500',
+      description: 'Community engagement'
+    },
+    {
+      title: 'Messages',
+      value: stats.totalContacts,
+      icon: MessageSquare,
+      color: 'from-emerald-500 to-emerald-600',
+      description: 'Contact submissions'
     }
-  }
+  ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-violet-900 to-slate-900 relative overflow-hidden">
-      {/* Background effects */}
-      <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-violet-900/80 to-slate-900/90" />
-        
-        {/* Floating particles */}
-        {floatingParticles.map((particle) => (
-          <motion.div
-            key={particle.id}
-            className="absolute w-1 h-1 bg-violet-400/20 rounded-full"
-            style={{
-              left: `${particle.left}%`,
-              top: `${particle.top}%`,
-            }}
-            animate={{
-              y: [0, -80, 0],
-              opacity: [0.2, 0.6, 0.2],
-              scale: [0.5, 2.5, 0.5],
-            }}
-            transition={{
-              duration: particle.duration,
-              repeat: Infinity,
-              delay: particle.delay,
-            }}
-          />
-        ))}
-      </div>
-
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-12">
-        {/* Header */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="mb-12"
-        >
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h1 className="text-4xl md:text-5xl font-light text-white mb-2 tracking-tight">
-                Dashboard
-              </h1>
-              <p className="text-gray-300">
-                Welcome back! Here's what's happening with your portfolio.
-              </p>
-            </div>
-            
-            <div className="flex gap-3">
-              <button
-                onClick={loadDashboardData}
-                disabled={loading}
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-full hover:bg-white/20 border border-white/20 transition-all duration-300 disabled:opacity-50"
-              >
-                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-              <Link
-                href="/"
-                className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-full hover:bg-white/20 border border-white/20 transition-all duration-300"
-              >
-                <Eye className="w-4 h-4" />
-                View Site
-              </Link>
-              <Link
-                href="/admin/settings"
-                className="flex items-center gap-2 px-4 py-2 bg-violet-600/30 text-white rounded-full hover:bg-violet-600/40 border border-violet-400/50 transition-all duration-300"
-              >
-                <Settings className="w-4 h-4" />
-                Settings
-              </Link>
-            </div>
-          </div>
-
-          {/* Last updated */}
-          <div className="text-sm text-gray-400">
-            Last updated: {lastUpdated.toLocaleTimeString()}
-          </div>
-        </motion.div>
-
-        {/* Stats Overview */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.1 }}
-          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
-        >
-          {[
-            { label: 'Total Views', value: stats.totalViews, icon: Eye, color: 'from-blue-500 to-cyan-500', change: '+12%' },
-            { label: 'Total Likes', value: stats.totalLikes, icon: Heart, color: 'from-red-500 to-pink-500', change: '+8%' },
-            { label: 'Contact Submissions', value: stats.contactSubmissions, icon: Mail, color: 'from-green-500 to-emerald-500', change: '+15%' },
-            { label: 'Content Items', value: stats.blogPosts + stats.artPieces + stats.photos + stats.models3D, icon: BarChart3, color: 'from-purple-500 to-violet-500', change: '+5%' }
-          ].map((stat, index) => (
+    <AdminAuthGuard>
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-900 relative overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute inset-0">
+          <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-indigo-900/80 to-slate-900/90" />
+          
+          {/* Enhanced floating particles */}
+          {floatingParticles.map((particle) => (
             <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: index * 0.1 }}
-              className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 hover:border-violet-400/30 transition-all duration-300"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-xl bg-gradient-to-br ${stat.color} bg-opacity-20`}>
-                  <stat.icon className="w-6 h-6 text-white" />
-                </div>
-                <div className="flex items-center gap-1 text-green-400 text-sm">
-                  <TrendingUp className="w-4 h-4" />
-                  {stat.change}
-                </div>
-              </div>
-              <div className="text-2xl font-bold text-white mb-1">
-                {loading ? '...' : stat.value.toLocaleString()}
-              </div>
-              <div className="text-gray-400 text-sm">{stat.label}</div>
-            </motion.div>
+              key={particle.id}
+              className="absolute w-1 h-1 bg-indigo-400/20 rounded-full"
+              style={{
+                left: `${particle.left}%`,
+                top: `${particle.top}%`,
+              }}
+              animate={{
+                y: [0, -150, 0],
+                opacity: [0.2, 0.8, 0.2],
+                scale: [0.5, 2.5, 0.5],
+              }}
+              transition={{
+                duration: particle.duration,
+                repeat: Infinity,
+                ease: "linear",
+                delay: particle.delay,
+              }}
+            />
           ))}
-        </motion.div>
+        </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Content */}
+        <div className="relative z-10 container mx-auto px-6 py-12">
+          {/* Header */}
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8 }}
+            className="mb-12"
+          >
+            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-4">
+              Admin Dashboard
+            </h1>
+            <p className="text-gray-300 text-lg">
+              Welcome back! Manage your portfolio content and track engagement.
+            </p>
+          </motion.div>
+
+          {/* Stats Overview */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.1 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12"
+          >
+            {statsCards.map((stat, index) => (
+              <motion.div
+                key={stat.title}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.1 + index * 0.1 }}
+                className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6 hover:border-indigo-400/50 transition-all duration-300"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`p-3 rounded-full bg-gradient-to-r ${stat.color}`}>
+                    <stat.icon className="w-6 h-6 text-white" />
+                  </div>
+                  <TrendingUp className="w-5 h-5 text-green-400" />
+                </div>
+                <div className={`text-3xl font-bold bg-gradient-to-r ${stat.color} bg-clip-text text-transparent mb-1`}>
+                  {loading ? '...' : stat.value.toLocaleString()}
+                </div>
+                <p className="text-gray-400 text-sm font-medium">{stat.title}</p>
+                <p className="text-gray-500 text-xs">{stat.description}</p>
+              </motion.div>
+            ))}
+          </motion.div>
+
           {/* Quick Actions */}
           <motion.div
-            initial={{ opacity: 0, x: -30 }}
-            animate={{ opacity: 1, x: 0 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="lg:col-span-2"
+            className="mb-12"
           >
-            <h2 className="text-2xl font-medium text-white mb-6">Quick Actions</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <Plus className="w-6 h-6 text-indigo-400" />
+              Quick Actions
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {quickActions.map((action, index) => (
                 <motion.div
                   key={action.title}
-                  initial={{ opacity: 0, y: 20 }}
+                  initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: index * 0.1 }}
-                  whileHover={{ y: -5 }}
+                  transition={{ duration: 0.6, delay: 0.2 + index * 0.1 }}
                 >
-                  <Link href={action.href} className="group block">
-                    <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 hover:border-violet-400/30 transition-all duration-300">
-                      <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-xl bg-gradient-to-br ${action.color}`}>
-                          <action.icon className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-white font-medium mb-1">{action.title}</h3>
-                          <p className="text-gray-400 text-sm">{action.description}</p>
-                        </div>
-                        <Plus className="w-5 h-5 text-gray-400 group-hover:text-white transition-colors" />
+                  <Link
+                    href={action.href}
+                    className={`group block p-6 ${action.bgColor} backdrop-blur-sm rounded-xl border border-white/10 hover:border-indigo-400/50 transition-all duration-300 hover:scale-105`}
+                  >
+                    <div className={`inline-flex p-3 rounded-full bg-gradient-to-r ${action.color} mb-4 group-hover:scale-110 transition-transform duration-300`}>
+                      <action.icon className="w-6 h-6 text-white" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-white mb-2 group-hover:text-indigo-300 transition-colors duration-300">
+                      {action.title}
+                    </h3>
+                    <p className="text-gray-400 text-sm">
+                      {action.description}
+                    </p>
+                  </Link>
+                </motion.div>
+              ))}
+            </div>
+          </motion.div>
+
+          {/* Management Links */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.3 }}
+            className="mb-12"
+          >
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <BarChart3 className="w-6 h-6 text-indigo-400" />
+              Content Management
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {managementLinks.map((link, index) => (
+                <motion.div
+                  key={link.title}
+                  initial={{ opacity: 0, x: -30 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ duration: 0.6, delay: 0.3 + index * 0.1 }}
+                >
+                  <Link
+                    href={link.href}
+                    className="group flex items-center justify-between p-6 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 hover:border-indigo-400/50 transition-all duration-300 hover:bg-white/10"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className={`p-3 rounded-full bg-gradient-to-r ${link.color}`}>
+                        <link.icon className="w-6 h-6 text-white" />
                       </div>
+                      <div>
+                        <h3 className="text-lg font-semibold text-white group-hover:text-indigo-300 transition-colors duration-300">
+                          {link.title}
+                        </h3>
+                        <p className="text-gray-400 text-sm">
+                          {link.description}
+                        </p>
+                      </div>
+                    </div>
+                    <div className={`text-2xl font-bold bg-gradient-to-r ${link.color} bg-clip-text text-transparent`}>
+                      {loading ? '...' : link.count}
                     </div>
                   </Link>
                 </motion.div>
               ))}
             </div>
-
-            {/* Content Overview */}
-            <h2 className="text-2xl font-medium text-white mb-6">Content Overview</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {[
-              { label: 'Blog Posts', value: stats.blogPosts, icon: FileText, href: '/admin/blog' },
-              { label: 'Artworks', value: stats.artPieces + stats.models3D, icon: Palette, href: '/admin/art' }, // COMBINED
-              { label: 'Photos', value: stats.photos, icon: Camera, href: '/admin/photos' },
-              { label: 'Total Views', value: stats.totalViews, icon: Eye, href: '/admin/analytics' }
-            ].map((item, index) => (
-              <Link key={item.label} href={item.href} className="group">
-                <div className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4 hover:border-violet-400/30 transition-all duration-300 text-center">
-                  <item.icon className="w-8 h-8 text-violet-400 mx-auto mb-2" />
-                  <div className="text-xl font-bold text-white mb-1">
-                    {loading ? '...' : item.value}
-                  </div>
-                  <div className="text-gray-400 text-sm">{item.label}</div>
-                </div>
-              </Link>
-            ))}
-          </div>
           </motion.div>
 
-          {/* Recent Activity */}
+          {/* Recent Activity Placeholder */}
           <motion.div
-            initial={{ opacity: 0, x: 30 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.8, delay: 0.3 }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-6"
           >
-            <h2 className="text-2xl font-medium text-white mb-6">Recent Activity</h2>
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-              {loading ? (
-                <div className="space-y-4">
-                  {[...Array(5)].map((_, i) => (
-                    <div key={i} className="flex items-center gap-3 p-3 rounded-lg animate-pulse">
-                      <div className="w-8 h-8 bg-white/10 rounded-lg" />
-                      <div className="flex-1 space-y-1">
-                        <div className="h-4 bg-white/10 rounded w-3/4" />
-                        <div className="h-3 bg-white/5 rounded w-1/2" />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : recentActivity.length > 0 ? (
-                <div className="space-y-4">
-                  {recentActivity.map((activity, index) => (
-                    <motion.div
-                      key={activity.id}
-                      initial={{ opacity: 0, x: 20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.5, delay: index * 0.1 }}
-                      className="flex items-start gap-3 p-3 rounded-lg hover:bg-white/5 transition-colors"
-                    >
-                      <div className={`p-2 rounded-lg bg-white/10 ${getActivityColor(activity.type)}`}>
-                        {getActivityIcon(activity.type)}
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-white text-sm mb-1">{activity.content}</p>
-                        {activity.user && (
-                          <p className="text-violet-400 text-xs mb-1">by {activity.user}</p>
-                        )}
-                        <p className="text-gray-400 text-xs">{activity.timestamp}</p>
-                      </div>
-                    </motion.div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center text-gray-400 py-8">
-                  <BarChart3 className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>No recent activity</p>
-                </div>
-              )}
-              
-              <button className="w-full mt-4 px-4 py-2 text-violet-400 hover:text-white text-sm transition-colors">
-                View All Activity
-              </button>
+            <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-3">
+              <Activity className="w-6 h-6 text-indigo-400" />
+              Recent Activity
+            </h2>
+            <div className="text-center py-12">
+              <Activity className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+              <p className="text-gray-400">Activity tracking coming soon...</p>
+              <p className="text-gray-500 text-sm mt-2">
+                View recent content updates, user engagement, and system events
+              </p>
             </div>
           </motion.div>
         </div>
       </div>
-    </div>
-  )
-}
-
-export default function AdminDashboard() {
-  return (
-    <AdminAuthGuard>
-      <AdminDashboardContent />
     </AdminAuthGuard>
   )
 }
+
+export default AdminDashboard

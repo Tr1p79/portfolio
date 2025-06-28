@@ -1,38 +1,37 @@
-// app/(pages)/work/2d/page.tsx - UPDATED to use real data
+// app/(pages)/work/2d/page.tsx
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import { useState, useMemo, useEffect } from 'react'
-import { ArrowLeft, X, ChevronLeft, ChevronRight, Heart, Eye, Download, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Eye, Heart, Filter, Grid, Search, ZoomIn } from 'lucide-react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { artworkAPI, Artwork } from '../../../../lib/database'
 
+interface LightboxImage {
+  id: string
+  src: string
+  title: string
+  description?: string
+}
+
 export default function TwoDWorkPage() {
-  const [artPieces, setArtPieces] = useState<Artwork[]>([])
-  const [selectedArt, setSelectedArt] = useState<Artwork | null>(null)
-  const [currentIndex, setCurrentIndex] = useState(0)
-  const [filter, setFilter] = useState('All') // Fixed: removed type annotation
+  const [artworks, setArtworks] = useState<Artwork[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  
-  // Get unique categories
-  const categories = ['All', ...Array.from(new Set(artPieces.map(art => art.subcategory).filter(Boolean)))]
-  
-  // Filter art pieces - Fixed: handle undefined subcategory
-  const filteredArt = useMemo(() => {
-    if (filter === 'All') return artPieces
-    return artPieces.filter(art => art.subcategory === filter)
-  }, [artPieces, filter])
+  const [filter, setFilter] = useState('All')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [lightboxImage, setLightboxImage] = useState<LightboxImage | null>(null)
+  const [lightboxIndex, setLightboxIndex] = useState(0)
 
-  // Memoize floating particles
+  // Memoize floating particles for performance
   const floatingParticles = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => ({
       id: i,
       left: Math.random() * 100,
       top: Math.random() * 100,
-      duration: 5 + Math.random() * 3,
-      delay: Math.random() * 3,
+      duration: 25 + Math.random() * 10,
+      delay: Math.random() * 5,
     }))
   }, [])
 
@@ -46,75 +45,132 @@ export default function TwoDWorkPage() {
     setError('')
     try {
       const allArtworks = await artworkAPI.getArtworks()
-      const artworks2D = allArtworks.filter(art => art.category === '2d')
-      setArtPieces(artworks2D)
+      // Filter for 2D category only
+      const twoDartworks = allArtworks.filter(art => art.category === '2d')
+      setArtworks(twoDartworks)
     } catch (err: any) {
-      setError(err.message || 'Failed to load artworks')
+      setError(err.message || 'Failed to load 2D artworks')
       console.error('Error loading 2D artworks:', err)
     } finally {
       setLoading(false)
     }
   }
 
-  const openLightbox = (art: Artwork) => {
-    setSelectedArt(art)
-    setCurrentIndex(filteredArt.findIndex(item => item.id === art.id))
-    
-    // Increment view count
-    artworkAPI.updateArtwork(art.id, { views: art.views + 1 })
-      .then(() => {
-        // Update local state
-        setArtPieces(prev => prev.map(piece => 
-          piece.id === art.id ? { ...piece, views: piece.views + 1 } : piece
-        ))
-      })
-      .catch(console.error)
+  // Get unique subcategories for filtering - FIXED: Handle undefined subcategory
+  const categories = useMemo(() => {
+    const uniqueCategories = artworks
+      .map(art => art.subcategory)
+      .filter((category): category is string => Boolean(category))
+    return ['All', ...Array.from(new Set(uniqueCategories))]
+  }, [artworks])
+
+  // Filter artworks based on category and search - FIXED: Handle undefined subcategory
+  const filteredArtworks = useMemo(() => {
+    let filtered = artworks
+
+    // Category filter - FIXED: Properly handle undefined subcategory
+    if (filter !== 'All') {
+      filtered = filtered.filter(art => art.subcategory === filter)
+    }
+
+    // Search filter
+    if (searchTerm) {
+      filtered = filtered.filter(art =>
+        art.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        art.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        art.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()))
+      )
+    }
+
+    return filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+  }, [artworks, filter, searchTerm])
+
+  // Lightbox navigation
+  const openLightbox = (artwork: Artwork, index: number) => {
+    setLightboxImage({
+      id: artwork.id,
+      src: artwork.image_url,
+      title: artwork.title,
+      description: artwork.description
+    })
+    setLightboxIndex(index)
   }
 
-  const navigateArt = (direction: 'prev' | 'next') => {
-    if (!selectedArt) return
-    
-    let newIndex = currentIndex
-    if (direction === 'prev') {
-      newIndex = currentIndex > 0 ? currentIndex - 1 : filteredArt.length - 1
-    } else {
-      newIndex = currentIndex < filteredArt.length - 1 ? currentIndex + 1 : 0
-    }
-    
-    setCurrentIndex(newIndex)
-    setSelectedArt(filteredArt[newIndex])
+  const closeLightbox = () => {
+    setLightboxImage(null)
   }
+
+  const navigateLightbox = (direction: 'prev' | 'next') => {
+    const currentIndex = lightboxIndex
+    let newIndex = direction === 'next' ? currentIndex + 1 : currentIndex - 1
+    
+    if (newIndex >= filteredArtworks.length) newIndex = 0
+    if (newIndex < 0) newIndex = filteredArtworks.length - 1
+    
+    const newArtwork = filteredArtworks[newIndex]
+    setLightboxImage({
+      id: newArtwork.id,
+      src: newArtwork.image_url,
+      title: newArtwork.title,
+      description: newArtwork.description
+    })
+    setLightboxIndex(newIndex)
+  }
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!lightboxImage) return
+      
+      switch (e.key) {
+        case 'Escape':
+          closeLightbox()
+          break
+        case 'ArrowLeft':
+          navigateLightbox('prev')
+          break
+        case 'ArrowRight':
+          navigateLightbox('next')
+          break
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [lightboxImage, lightboxIndex])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
-      {/* Background effects */}
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-pink-900 to-slate-900 relative overflow-hidden">
+      {/* Background Effects */}
       <div className="absolute inset-0">
-        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-purple-900/80 to-slate-900/90" />
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-pink-900/80 to-slate-900/90" />
         
-        {/* Floating particles */}
+        {/* Floating Particles */}
         {floatingParticles.map((particle) => (
           <motion.div
             key={particle.id}
-            className="absolute w-1 h-1 bg-pink-400/40 rounded-full"
+            className="absolute w-1 h-1 bg-pink-400/30 rounded-full"
             style={{
               left: `${particle.left}%`,
               top: `${particle.top}%`,
             }}
             animate={{
-              y: [0, -25, 0],
-              opacity: [0.2, 0.8, 0.2],
-              scale: [0.5, 1.2, 0.5],
+              y: [0, -120, 0],
+              opacity: [0.3, 0.8, 0.3],
+              scale: [0.5, 2, 0.5],
             }}
             transition={{
               duration: particle.duration,
               repeat: Infinity,
+              ease: "linear",
               delay: particle.delay,
             }}
           />
         ))}
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-12">
+      {/* Content Container */}
+      <div className="relative z-10 container mx-auto px-6 py-12">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -122,63 +178,53 @@ export default function TwoDWorkPage() {
           transition={{ duration: 0.8 }}
           className="mb-12"
         >
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition-colors mb-6"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Link>
-          
-          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4 mb-6">
+            <Link
+              href="/work"
+              className="p-3 bg-white/10 backdrop-blur-sm rounded-full text-pink-300 hover:text-white border border-white/20 hover:border-pink-400/50 transition-all duration-300"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Link>
             <div>
-              <h1 className="text-5xl md:text-7xl font-light text-white mb-6 tracking-tight">
-                2D Art
+              <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-pink-400 via-pink-300 to-pink-500 bg-clip-text text-transparent mb-2">
+                2D Digital Art
               </h1>
-              <p className="text-xl text-gray-300 max-w-3xl">
-                Digital paintings, illustrations, and concept art showcasing creativity across various styles and themes.
+              <p className="text-gray-300 text-lg">
+                Digital paintings, illustrations, and concept art
               </p>
             </div>
-            
-            {/* Refresh button */}
-            <button
-              onClick={loadArtworks}
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-full hover:bg-white/20 border border-white/20 transition-all duration-300 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              Refresh
-            </button>
           </div>
         </motion.div>
 
-        {/* Error Message */}
-        {error && (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8 p-4 bg-red-900/20 border border-red-500/30 rounded-xl text-red-300"
-          >
-            {error}
-          </motion.div>
-        )}
-
-        {/* Category Filter */}
+        {/* Controls */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="mb-12"
+          transition={{ duration: 0.8, delay: 0.1 }}
+          className="mb-8 flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between"
         >
-          <div className="flex flex-wrap gap-3">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search artworks..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-12 pr-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-full text-white placeholder-gray-400 focus:outline-none focus:border-pink-400/50 transition-all duration-300 w-full sm:w-80"
+            />
+          </div>
+
+          {/* Filters */}
+          <div className="flex gap-2 flex-wrap">
             {categories.map((category) => (
               <button
                 key={category}
                 onClick={() => setFilter(category)}
-                className={`px-6 py-3 rounded-full transition-all duration-300 backdrop-blur-sm border ${
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-300 ${
                   filter === category
-                    ? 'bg-pink-600/30 border-pink-400/50 text-white shadow-lg shadow-pink-500/25'
-                    : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:border-white/20'
+                    ? 'bg-pink-600/30 border border-pink-400/50 text-white'
+                    : 'bg-white/5 border border-white/10 text-gray-300 hover:bg-white/10 hover:border-pink-400/30'
                 }`}
               >
                 {category}
@@ -188,257 +234,201 @@ export default function TwoDWorkPage() {
         </motion.div>
 
         {/* Loading State */}
-        {loading ? (
-          <div className="text-center py-20">
-            <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-pink-400" />
-            <p className="text-gray-300">Loading 2D artworks...</p>
-          </div>
-        ) : filteredArt.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-gray-400 text-lg mb-4">
-              {artPieces.length === 0 ? 'No 2D artworks yet' : 'No artworks match your criteria'}
-            </div>
-            <Link
-              href="/admin/art/new"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-pink-600/30 text-white rounded-full hover:bg-pink-600/40 transition-colors"
-            >
-              Add Your First 2D Artwork
-            </Link>
-          </div>
-        ) : (
-          /* Art Gallery Grid */
+        {loading && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.8, delay: 0.4 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12"
+            className="text-center py-20"
           >
-            {filteredArt.map((art, index) => (
+            <div className="w-16 h-16 border-4 border-pink-400/30 border-t-pink-400 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-300">Loading 2D artworks...</p>
+          </motion.div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-8 p-4 bg-red-900/20 border border-red-500/30 rounded-xl text-red-300"
+          >
+            {error}
+          </motion.div>
+        )}
+
+        {/* No Results */}
+        {!loading && !error && filteredArtworks.length === 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center py-20"
+          >
+            <Grid className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+            <h3 className="text-xl text-gray-300 mb-2">No artworks found</h3>
+            <p className="text-gray-500">
+              {searchTerm || filter !== 'All' 
+                ? 'Try adjusting your search or filters'
+                : 'No 2D artworks have been uploaded yet'
+              }
+            </p>
+          </motion.div>
+        )}
+
+        {/* Artwork Grid */}
+        {!loading && !error && filteredArtworks.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
+          >
+            {filteredArtworks.map((artwork, index) => (
               <motion.div
-                key={art.id}
+                key={artwork.id}
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                whileHover={{ y: -8 }}
-                className="group cursor-pointer"
-                onClick={() => openLightbox(art)}
+                transition={{ duration: 0.6, delay: index * 0.05 }}
+                className="group relative bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 overflow-hidden hover:border-pink-400/50 transition-all duration-500"
               >
-                <div className="relative bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 overflow-hidden shadow-2xl hover:shadow-pink-500/20 hover:border-pink-400/30 transition-all duration-500">
-                  {/* Featured badge */}
-                  {art.featured && (
-                    <div className="absolute top-4 left-4 z-10 px-3 py-1 bg-gradient-to-r from-pink-600 to-purple-600 text-white text-xs font-medium rounded-full">
+                {/* Image Container */}
+                <div className="relative aspect-[4/3] overflow-hidden">
+                  <Image
+                    src={artwork.image_url}
+                    alt={artwork.title}
+                    fill
+                    className="object-cover transition-transform duration-500 group-hover:scale-110"
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 25vw"
+                  />
+                  
+                  {/* Overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                  
+                  {/* Featured Badge */}
+                  {artwork.featured && (
+                    <div className="absolute top-3 left-3 px-2 py-1 bg-pink-500/80 backdrop-blur-sm rounded-full text-xs font-medium text-white">
                       Featured
                     </div>
                   )}
-
-                  {/* Art Image */}
-                  <div className="relative aspect-[4/3] overflow-hidden">
-                    <Image
-                      src={art.image_url}
-                      alt={art.title}
-                      fill
-                      className="object-cover transition-transform duration-700 group-hover:scale-110"
-                    />
-                    
-                    {/* Overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    
-                    {/* View overlay */}
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <div className="px-6 py-3 bg-white/20 backdrop-blur-sm rounded-full text-white font-medium flex items-center gap-2">
-                        <Eye className="w-4 h-4" />
-                        View Full
-                      </div>
-                    </div>
+                  
+                  {/* Hover Actions */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                    <button
+                      onClick={() => openLightbox(artwork, index)}
+                      className="p-3 bg-white/20 backdrop-blur-sm rounded-full text-white hover:bg-white/30 transition-colors duration-200"
+                    >
+                      <ZoomIn className="w-5 h-5" />
+                    </button>
                   </div>
+                </div>
 
-                  {/* Content */}
-                  <div className="p-6">
-                    <h3 className="text-xl font-medium text-white mb-2 group-hover:text-gray-100 transition-colors">
-                      {art.title}
-                    </h3>
-                    
-                    <p className="text-gray-400 text-sm mb-4 line-clamp-2">
-                      {art.description}
+                {/* Content */}
+                <div className="p-4">
+                  <h3 className="font-semibold text-white mb-1 line-clamp-1">
+                    {artwork.title}
+                  </h3>
+                  {artwork.description && (
+                    <p className="text-gray-400 text-sm mb-3 line-clamp-2">
+                      {artwork.description}
                     </p>
-
-                    {/* Meta info */}
-                    <div className="flex items-center justify-between text-sm text-gray-400 mb-4">
-                      <span>{art.year || new Date(art.created_at).getFullYear()}</span>
-                      <span className="text-pink-400">{art.subcategory}</span>
+                  )}
+                  
+                  {/* Tags */}
+                  {artwork.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1 mb-3">
+                      {artwork.tags.slice(0, 3).map((tag) => (
+                        <span
+                          key={tag}
+                          className="px-2 py-1 bg-pink-500/20 text-pink-300 text-xs rounded-full"
+                        >
+                          {tag}
+                        </span>
+                      ))}
                     </div>
+                  )}
 
-                    {/* Stats */}
-                    <div className="flex items-center justify-between text-sm text-gray-400">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-1">
-                          <Heart className="w-4 h-4" />
-                          {art.likes}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Eye className="w-4 h-4" />
-                          {art.views}
-                        </div>
-                      </div>
-                      <span className="text-xs">{art.dimensions}</span>
+                  {/* Stats */}
+                  <div className="flex items-center justify-between text-gray-400 text-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="flex items-center gap-1">
+                        <Eye className="w-4 h-4" />
+                        {artwork.views}
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <Heart className="w-4 h-4" />
+                        {artwork.likes}
+                      </span>
                     </div>
-                  </div>
-
-                  {/* Magical sparkles on hover */}
-                  <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    {[...Array(4)].map((_, i) => (
-                      <motion.div
-                        key={i}
-                        className="absolute w-1 h-1 bg-pink-400 rounded-full"
-                        style={{
-                          left: `${i * 6}px`,
-                          top: `${i * 8}px`,
-                        }}
-                        animate={{
-                          opacity: [0, 1, 0],
-                          scale: [0, 1.5, 0],
-                        }}
-                        transition={{
-                          duration: 1.2,
-                          delay: i * 0.15,
-                          repeat: Infinity,
-                          repeatDelay: 0.8
-                        }}
-                      />
-                    ))}
+                    {artwork.year && (
+                      <span>{artwork.year}</span>
+                    )}
                   </div>
                 </div>
               </motion.div>
             ))}
           </motion.div>
         )}
-
-        {/* Call to action */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.6 }}
-          className="text-center"
-        >
-          <div className="inline-flex items-center gap-2 px-6 py-3 bg-white/5 text-gray-300 rounded-full backdrop-blur-sm border border-white/10">
-            <Download className="w-4 h-4" />
-            High resolution prints available upon request
-          </div>
-        </motion.div>
       </div>
 
-      {/* Lightbox Modal */}
-      <AnimatePresence>
-        {selectedArt && (
+      {/* Lightbox */}
+      {lightboxImage && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-sm flex items-center justify-center p-4"
+          onClick={closeLightbox}
+        >
           <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 backdrop-blur-sm z-50 flex items-center justify-center"
-            onClick={() => setSelectedArt(null)}
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            className="relative max-w-6xl max-h-[90vh] w-full h-full flex items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
           >
-            {/* Close button */}
+            {/* Navigation Buttons */}
             <button
-              onClick={() => setSelectedArt(null)}
-              className="absolute top-6 right-6 z-10 p-2 bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors"
+              onClick={() => navigateLightbox('prev')}
+              className="absolute left-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors duration-200 z-10"
             >
-              <X className="w-6 h-6" />
+              <ArrowLeft className="w-6 h-6" />
+            </button>
+            
+            <button
+              onClick={() => navigateLightbox('next')}
+              className="absolute right-4 top-1/2 -translate-y-1/2 p-3 bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors duration-200 z-10"
+            >
+              <ArrowLeft className="w-6 h-6 rotate-180" />
             </button>
 
-            {/* Navigation arrows */}
-            {filteredArt.length > 1 && (
-              <>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigateArt('prev')
-                  }}
-                  className="absolute left-6 top-1/2 -translate-y-1/2 z-10 p-3 bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors"
-                >
-                  <ChevronLeft className="w-6 h-6" />
-                </button>
-                
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    navigateArt('next')
-                  }}
-                  className="absolute right-6 top-1/2 -translate-y-1/2 z-10 p-3 bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors"
-                >
-                  <ChevronRight className="w-6 h-6" />
-                </button>
-              </>
-            )}
-
-            {/* Image and info */}
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.8, opacity: 0 }}
-              transition={{ type: "spring", bounce: 0.3 }}
-              className="max-w-6xl max-h-[90vh] mx-4 flex flex-col md:flex-row gap-6"
-              onClick={(e) => e.stopPropagation()}
+            {/* Close Button */}
+            <button
+              onClick={closeLightbox}
+              className="absolute top-4 right-4 p-3 bg-white/10 backdrop-blur-sm rounded-full text-white hover:bg-white/20 transition-colors duration-200 z-10"
             >
-              {/* Image */}
-              <div className="relative flex-1 max-h-[70vh] md:max-h-[80vh]">
-                <Image
-                  src={selectedArt.image_url}
-                  alt={selectedArt.title}
-                  width={1200}
-                  height={800}
-                  className="w-full h-full object-contain rounded-lg"
-                />
-              </div>
+              ✕
+            </button>
 
-              {/* Info panel */}
-              <div className="w-full md:w-80 bg-white/10 backdrop-blur-xl rounded-lg p-6 border border-white/20">
-                <h2 className="text-2xl font-medium text-white mb-3">{selectedArt.title}</h2>
-                <p className="text-gray-300 mb-6">{selectedArt.description}</p>
-                
-                <div className="space-y-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Category:</span>
-                    <span className="text-white">{selectedArt.subcategory}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Year:</span>
-                    <span className="text-white">{selectedArt.year || new Date(selectedArt.created_at).getFullYear()}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Medium:</span>
-                    <span className="text-white">{selectedArt.medium || 'Digital'}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-400">Dimensions:</span>
-                    <span className="text-white">{selectedArt.dimensions || 'Digital'}</span>
-                  </div>
-                </div>
+            {/* Image */}
+            <div className="relative w-full h-full flex items-center justify-center">
+              <Image
+                src={lightboxImage.src}
+                alt={lightboxImage.title}
+                width={1200}
+                height={800}
+                className="max-w-full max-h-full object-contain"
+              />
+            </div>
 
-                <div className="border-t border-white/10 mt-6 pt-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4 text-gray-300">
-                      <div className="flex items-center gap-1">
-                        <Heart className="w-4 h-4" />
-                        {selectedArt.likes}
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <Eye className="w-4 h-4" />
-                        {selectedArt.views}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-6">
-                  <span className="text-xs text-gray-400">
-                    {currentIndex + 1} of {filteredArt.length}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
+            {/* Image Info */}
+            <div className="absolute bottom-4 left-4 right-4 bg-black/60 backdrop-blur-sm rounded-xl p-4 text-white">
+              <h3 className="text-xl font-semibold mb-1">{lightboxImage.title}</h3>
+              {lightboxImage.description && (
+                <p className="text-gray-300">{lightboxImage.description}</p>
+              )}
+            </div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </motion.div>
+      )}
     </div>
   )
 }
