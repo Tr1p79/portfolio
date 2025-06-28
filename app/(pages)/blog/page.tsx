@@ -145,7 +145,8 @@ export default function BlogPage() {
         ))}
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-12">
+      <div className="relative z-10 max-w-7xl mx-auto px-6 pt-6 pb-12">
+      <div className="mt-20">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -495,6 +496,7 @@ export default function BlogPage() {
             </div>
           </motion.div>
         )}
+      </div>
       </div>
     </div>
   )

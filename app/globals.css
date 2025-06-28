@@ -26,3 +26,180 @@ body {
 .shadow-mac {
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
 }
+
+/* Base container spacing for all page layouts */
+.page-container {
+  @apply pt-6 pb-12; /* Reduced from pt-20 to pt-6 */
+}
+
+/* Header spacing for pages with back buttons */
+.page-header {
+  @apply mb-12 mt-16; /* mt-16 accounts for navbar height */
+}
+
+/* Navbar height considerations */
+.navbar-height {
+  height: 80px; /* Standard navbar height */
+}
+
+/* Blog page specific fixes */
+.blog-container {
+  @apply pt-6 pb-12; /* Fix blog page hiding under navbar */
+}
+
+.blog-header {
+  @apply mb-12 mt-20; /* Extra spacing for blog header */
+}
+
+/* Work page specific fixes */
+.work-page {
+  @apply min-h-screen relative;
+}
+
+.work-content {
+  @apply relative z-10 container mx-auto px-6 pt-6 pb-12;
+}
+
+.work-header {
+  @apply mb-12 mt-16; /* Consistent spacing for work pages */
+}
+
+/* Admin page fixes */
+.admin-container {
+  @apply relative z-10 container mx-auto px-6 py-12;
+}
+
+.admin-header {
+  @apply mb-8 mt-4; /* Tighter spacing for admin pages */
+}
+
+/* About page fixes */
+.about-container {
+  @apply relative z-10 max-w-7xl mx-auto px-6 pt-6 pb-12;
+}
+
+.about-header {
+  @apply mb-16 mt-16;
+}
+
+/* Contact page fixes */
+.contact-container {
+  @apply relative z-10 max-w-4xl mx-auto px-6 pt-6 pb-12;
+}
+
+.contact-header {
+  @apply mb-12 mt-16;
+}
+
+/* Home page adjustments */
+.hero-section {
+  @apply min-h-screen flex items-center justify-center relative;
+  padding-top: 80px; /* Account for fixed navbar */
+}
+
+/* Responsive spacing adjustments */
+@media (max-width: 768px) {
+  .page-header,
+  .work-header,
+  .about-header,
+  .contact-header,
+  .blog-header {
+    @apply mt-12; /* Reduced top margin on mobile */
+  }
+  
+  .hero-section {
+    padding-top: 60px; /* Smaller navbar on mobile */
+  }
+}
+
+/* Utility classes for consistent spacing */
+.navbar-safe-top {
+  @apply pt-6; /* Safe top padding that accounts for navbar */
+}
+
+.content-spacing {
+  @apply mt-16 mb-12; /* Standard content spacing */
+}
+
+.mobile-safe-spacing {
+  @apply mt-12 mb-8; /* Mobile-optimized spacing */
+}
+
+/* Fix for elements that appear behind navbar */
+.z-safe {
+  z-index: 40; /* Safe z-index below navbar (which is z-50) */
+}
+
+/* Smooth scrolling for better navigation */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Ensure all page backgrounds extend full height */
+.page-background {
+  @apply min-h-screen;
+}
+
+/* Fix for floating particles not interfering with content */
+.floating-particles {
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Content should always be above background effects */
+.main-content {
+  @apply relative;
+  z-index: 10;
+}
+
+/* Navbar backdrop blur fix */
+.navbar-backdrop {
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+/* Mobile menu spacing fix */
+.mobile-menu {
+  @apply mt-4; /* Space below navbar */
+}
+
+/* Page transition helpers */
+.page-enter {
+  @apply opacity-0 translate-y-4;
+}
+
+.page-enter-active {
+  @apply opacity-100 translate-y-0 transition-all duration-500;
+}
+
+/* Loading state improvements */
+.loading-spinner {
+  @apply relative;
+  top: 50vh;
+  transform: translateY(-50%);
+}
+
+/* Error state positioning */
+.error-message {
+  @apply relative;
+  margin-top: 20vh;
+}
+
+/* Consistent button spacing */
+.action-buttons {
+  @apply flex items-center gap-4 mt-8;
+}
+
+/* Card grid responsive improvements */
+.card-grid {
+  @apply grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6;
+}
+
+/* Masonry layout improvements for photography */
+.masonry-grid {
+  @apply columns-1 md:columns-2 lg:columns-3 xl:columns-4 gap-6 space-y-6;
+}
+
+.masonry-item {
+  @apply break-inside-avoid mb-6;
+}

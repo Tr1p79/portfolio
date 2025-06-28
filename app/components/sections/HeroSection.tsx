@@ -83,7 +83,7 @@ export default function HeroSection() {
       <div className="absolute inset-0">
         {/* Dark gradient overlay */}
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900/90 via-purple-900/80 to-slate-900/90" />
-        
+        <div className="min-h-screen flex items-center justify-center relative pt-20"></div>
         {/* Isolated starfield background */}
         <StarfieldBackground />
 

@@ -124,7 +124,8 @@ export default function ThreeDWorkPage() {
       </div>
 
       {/* Content Container */}
-      <div className="relative z-10 container mx-auto px-6 py-12">
+      <div className="relative z-10 container mx-auto px-6 pt-6 pb-12">
+      <div className="mt-20">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
@@ -432,6 +433,7 @@ export default function ThreeDWorkPage() {
           background: rgba(147, 51, 234, 0.7);
         }
       `}</style>
+    </div>
     </div>
   )
 }

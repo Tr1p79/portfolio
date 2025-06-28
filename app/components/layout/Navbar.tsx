@@ -83,10 +83,10 @@ export default function Navbar() {
       initial={{ opacity: 0, y: -20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.6 }}
-      className={`fixed top-0 w-full z-50 transition-all duration-500 ${
+      className={`fixed top-0 w-full z-50 h-20 ... ${
         scrolled 
-          ? 'bg-slate-900/95 backdrop-blur-xl border-b border-white/10 shadow-2xl shadow-purple-500/5' 
-          : 'bg-slate-900/80 backdrop-blur-xl border-b border-white/5'
+          ? 'bg-slate-900/90 backdrop-blur-xl border-b border-white/10' 
+          : 'bg-transparent'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

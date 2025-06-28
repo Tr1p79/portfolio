@@ -158,7 +158,7 @@ export default function PhotographyPage() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="mb-12 mt-16" // Added mt-16 for navbar spacing
+          className="mb-8" // Reduced margin
         >
           <div className="flex items-center gap-4 mb-6">
             <Link

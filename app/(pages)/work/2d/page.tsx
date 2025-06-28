@@ -170,13 +170,14 @@ export default function TwoDWorkPage() {
       </div>
 
       {/* Content Container */}
-      <div className="relative z-10 container mx-auto px-6 py-12">
+      <div className="relative z-10 container mx-auto px-6 pt-6 pb-12">
+      <div className="mt-20"> 
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="mb-12"
+          className="mb-8" // Reduced margin
         >
           <div className="flex items-center gap-4 mb-6">
             <Link
@@ -429,6 +430,7 @@ export default function TwoDWorkPage() {
           </motion.div>
         </motion.div>
       )}
+      </div>
     </div>
   )
 }
