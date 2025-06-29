@@ -27,6 +27,7 @@ import {
 import Link from 'next/link'
 import AdminAuthGuard from '../../../../../components/admin/AdminAuthGuard'
 import ImageUpload from '../../../../../components/admin/ImageUpload'
+import CustomDropdown from '../../../../../components/ui/CustomDropdown'
 import { blogAPI } from '../../../../../../lib/database'
 
 // Blog categories - in a real app, get from database
@@ -259,6 +260,12 @@ function BlogEditorContent({ params }: BlogEditPageProps) {
       setError(err.message || 'Failed to delete blog post')
     }
   }
+
+  // Create dropdown options for categories
+  const categoryOptions = blogCategories.map(category => ({
+    value: category.name,
+    label: category.name
+  }))
 
   // Loading state
   if (loading) {
@@ -610,20 +617,14 @@ function BlogEditorContent({ params }: BlogEditPageProps) {
             </div>
 
             {/* Category */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 relative z-50">
               <h3 className="text-white font-medium mb-4">Category</h3>
-              <select
+              <CustomDropdown
+                options={categoryOptions}
                 value={formData.category}
-                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400/50"
-              >
-                <option value="">Select category</option>
-                {blogCategories.map((category) => (
-                  <option key={category.id} value={category.name}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                placeholder="Select category"
+              />
             </div>
 
             {/* Tags */}

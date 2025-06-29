@@ -26,6 +26,7 @@ import {
 import Link from 'next/link'
 import AdminAuthGuard from '../../../../components/admin/AdminAuthGuard'
 import ImageUpload from '../../../../components/admin/ImageUpload'
+import CustomDropdown from '../../../../components/ui/CustomDropdown'
 import { artworkAPI } from '../../../../../lib/database'
 
 interface PhotoUpload {
@@ -167,6 +168,12 @@ function PhotoUploadContent() {
   }
 
   const selectedPhotoData = uploads.find(p => p.id === selectedPhoto)
+  
+  // Create dropdown options for photo categories
+  const categoryOptions = photoCategories.map(category => ({
+    value: category,
+    label: category
+  }))
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-emerald-900 to-slate-900 relative overflow-hidden">
@@ -468,16 +475,12 @@ function PhotoUploadContent() {
                     {/* Category */}
                     <div>
                       <label className="block text-white text-sm font-medium mb-2">Category</label>
-                      <select
+                      <CustomDropdown
+                        options={categoryOptions}
                         value={selectedPhotoData.category}
-                        onChange={(e) => updatePhoto(selectedPhotoData.id, { category: e.target.value })}
-                        className="w-full px-3 py-2 bg-white/10 backdrop-blur-sm border border-white/20 rounded-lg text-white focus:outline-none focus:border-emerald-400/50 text-sm"
-                      >
-                        <option value="">Select category</option>
-                        {photoCategories.map((category) => (
-                          <option key={category} value={category}>{category}</option>
-                        ))}
-                      </select>
+                        onChange={(value) => updatePhoto(selectedPhotoData.id, { category: value })}
+                        placeholder="Select category"
+                      />
                     </div>
 
                     {/* Location */}

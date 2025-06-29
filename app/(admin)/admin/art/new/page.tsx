@@ -19,6 +19,7 @@ import {
 import Link from 'next/link'
 import AdminAuthGuard from '../../../../components/admin/AdminAuthGuard'
 import ImageUpload from '../../../../components/admin/ImageUpload'
+import CustomDropdown from '../../../../components/ui/CustomDropdown'
 import { artworkAPI } from '../../../../../lib/database'
 
 interface ArtworkForm {
@@ -155,6 +156,12 @@ function ArtworkUploadContent() {
   }
 
   const currentCategories = artworkCategories[formData.category]
+  
+  // Create dropdown options for subcategory
+  const subcategoryOptions = currentCategories.map(category => ({
+    value: category,
+    label: category
+  }))
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 relative overflow-hidden">
@@ -238,17 +245,22 @@ function ArtworkUploadContent() {
           </motion.div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-8">
           {/* Main Form */}
           <motion.div
             initial={{ opacity: 0, x: -30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.1 }}
-            className="lg:col-span-2 space-y-6"
+            className="xl:col-span-3 space-y-6"
           >
             {/* Artwork Image */}
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-              <h3 className="text-white font-medium mb-4">Artwork Image</h3>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-600/20 rounded-lg">
+                  <ImageIcon className="w-5 h-5 text-purple-400" />
+                </div>
+                <h3 className="text-white font-medium">Artwork Image</h3>
+              </div>
               <ImageUpload
                 currentImage={formData.image_url}
                 onUploadComplete={(url) => setFormData(prev => ({ ...prev, image_url: url }))}
@@ -260,11 +272,16 @@ function ArtworkUploadContent() {
 
             {/* Basic Info */}
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-              <h3 className="text-white font-medium mb-4">Basic Information</h3>
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-purple-600/20 rounded-lg">
+                  <Palette className="w-5 h-5 text-purple-400" />
+                </div>
+                <h3 className="text-white font-medium">Basic Information</h3>
+              </div>
               
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Title */}
-                <div>
+                <div className="lg:col-span-2">
                   <label className="block text-white font-medium mb-2">Title *</label>
                   <input
                     type="text"
@@ -276,7 +293,7 @@ function ArtworkUploadContent() {
                 </div>
 
                 {/* Description */}
-                <div>
+                <div className="lg:col-span-2">
                   <label className="block text-white font-medium mb-2">Description</label>
                   <textarea
                     value={formData.description}
@@ -288,7 +305,7 @@ function ArtworkUploadContent() {
                 </div>
 
                 {/* Category Type */}
-                <div>
+                <div className="lg:col-span-2">
                   <label className="block text-white font-medium mb-2">Type *</label>
                   <div className="grid grid-cols-2 gap-4">
                     <button
@@ -321,42 +338,38 @@ function ArtworkUploadContent() {
                 {/* Subcategory */}
                 <div>
                   <label className="block text-white font-medium mb-2">Category *</label>
-                  <select
+                  <CustomDropdown
+                    options={subcategoryOptions}
                     value={formData.subcategory}
-                    onChange={(e) => setFormData(prev => ({ ...prev, subcategory: e.target.value }))}
-                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-purple-400/50"
-                  >
-                    <option value="">Select category</option>
-                    {currentCategories.map((category) => (
-                      <option key={category} value={category}>{category}</option>
-                    ))}
-                  </select>
+                    onChange={(value) => setFormData(prev => ({ ...prev, subcategory: value }))}
+                    placeholder="Select category"
+                    required
+                  />
                 </div>
 
-                {/* Year and Medium */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-white font-medium mb-2">Year</label>
-                    <input
-                      type="number"
-                      value={formData.year}
-                      onChange={(e) => setFormData(prev => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))}
-                      min="1900"
-                      max={new Date().getFullYear()}
-                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-purple-400/50"
-                    />
-                  </div>
-                  
-                  <div>
-                    <label className="block text-white font-medium mb-2">Medium</label>
-                    <input
-                      type="text"
-                      value={formData.medium}
-                      onChange={(e) => setFormData(prev => ({ ...prev, medium: e.target.value }))}
-                      placeholder="e.g., Digital, Blender, Photoshop"
-                      className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-400/50"
-                    />
-                  </div>
+                {/* Year */}
+                <div>
+                  <label className="block text-white font-medium mb-2">Year</label>
+                  <input
+                    type="number"
+                    value={formData.year}
+                    onChange={(e) => setFormData(prev => ({ ...prev, year: parseInt(e.target.value) || new Date().getFullYear() }))}
+                    min="1900"
+                    max={new Date().getFullYear()}
+                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-purple-400/50"
+                  />
+                </div>
+
+                {/* Medium */}
+                <div className="lg:col-span-2">
+                  <label className="block text-white font-medium mb-2">Medium</label>
+                  <input
+                    type="text"
+                    value={formData.medium}
+                    onChange={(e) => setFormData(prev => ({ ...prev, medium: e.target.value }))}
+                    placeholder="e.g., Digital, Blender, Photoshop"
+                    className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white placeholder-gray-400 focus:outline-none focus:border-purple-400/50"
+                  />
                 </div>
 
                 {/* Dimensions */}
@@ -371,9 +384,9 @@ function ArtworkUploadContent() {
                   />
                 </div>
 
-                {/* Sketchfab ID (for 3D) */}
+                {/* Sketchfab ID (for 3D) - spans full width when visible */}
                 {formData.category === '3d' && (
-                  <div>
+                  <div className="lg:col-span-2">
                     <label className="block text-white font-medium mb-2">
                       <ExternalLink className="w-4 h-4 inline mr-1" />
                       Sketchfab Model ID
@@ -399,11 +412,16 @@ function ArtworkUploadContent() {
             initial={{ opacity: 0, x: 30 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8, delay: 0.2 }}
-            className="space-y-6"
+            className="xl:col-span-2 space-y-6"
           >
             {/* Tags */}
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-              <h3 className="text-white font-medium mb-4">Tags</h3>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-600/20 rounded-lg">
+                  <Tag className="w-5 h-5 text-purple-400" />
+                </div>
+                <h3 className="text-white font-medium">Tags</h3>
+              </div>
               
               <div className="flex gap-2 mb-3">
                 <input
@@ -442,10 +460,15 @@ function ArtworkUploadContent() {
 
             {/* Settings */}
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
-              <h3 className="text-white font-medium mb-4">Settings</h3>
+              <div className="flex items-center gap-3 mb-4">
+                <div className="p-2 bg-purple-600/20 rounded-lg">
+                  <Calendar className="w-5 h-5 text-purple-400" />
+                </div>
+                <h3 className="text-white font-medium">Settings</h3>
+              </div>
               
               <div className="space-y-4">
-                <label className="flex items-center gap-3">
+                <label className="flex items-center gap-3 p-3 bg-white/5 rounded-lg hover:bg-white/10 transition-colors cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formData.featured}
@@ -453,6 +476,7 @@ function ArtworkUploadContent() {
                     className="w-4 h-4 text-purple-600 bg-white/10 border-white/20 rounded focus:ring-purple-500"
                   />
                   <span className="text-white">Featured Artwork</span>
+                  <span className="text-gray-400 text-sm ml-auto">Showcase in portfolio</span>
                 </label>
               </div>
             </div>

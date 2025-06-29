@@ -24,6 +24,8 @@ import {
 } from 'lucide-react'
 import Link from 'next/link'
 import AdminAuthGuard from '@components/admin/AdminAuthGuard'
+import ImageUpload from '../../../../components/admin/ImageUpload'
+import CustomDropdown from '../../../../components/ui/CustomDropdown'
 import { blogAPI } from '@lib/database'
 
 // Blog categories - in a real app, get from database
@@ -197,6 +199,12 @@ function BlogEditorContent() {
       setIsSaving(false)
     }
   }
+
+  // Create dropdown options for categories
+  const categoryOptions = blogCategories.map(category => ({
+    value: category.name,
+    label: category.name
+  }))
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 relative overflow-hidden">
@@ -475,20 +483,14 @@ function BlogEditorContent() {
             </div>
 
             {/* Category */}
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
+            <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6 relative z-50">
               <h3 className="text-white font-medium mb-4">Category</h3>
-              <select
+              <CustomDropdown
+                options={categoryOptions}
                 value={formData.category}
-                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                className="w-full px-4 py-3 bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl text-white focus:outline-none focus:border-blue-400/50"
-              >
-                <option value="">Select category</option>
-                {blogCategories.map((category) => (
-                  <option key={category.id} value={category.name}>
-                    {category.name}
-                  </option>
-                ))}
-              </select>
+                onChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+                placeholder="Select category"
+              />
             </div>
 
             {/* Tags */}
@@ -534,30 +536,12 @@ function BlogEditorContent() {
             <div className="bg-white/5 backdrop-blur-sm rounded-2xl border border-white/10 p-6">
               <h3 className="text-white font-medium mb-4">Featured Image</h3>
               
-              {formData.featured_image ? (
-                <div className="relative aspect-video rounded-lg overflow-hidden mb-3">
-                  <img
-                    src={formData.featured_image}
-                    alt="Featured"
-                    className="w-full h-full object-cover"
-                  />
-                  <button
-                    onClick={() => setFormData(prev => ({ ...prev, featured_image: '' }))}
-                    className="absolute top-2 right-2 p-1 bg-red-600/80 text-white rounded-full hover:bg-red-600 transition-colors"
-                  >
-                    ×
-                  </button>
-                </div>
-              ) : (
-                <div className="border-2 border-dashed border-white/20 rounded-lg p-8 text-center">
-                  <ImageIcon className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                  <p className="text-gray-400 text-sm mb-3">Upload featured image</p>
-                  <button className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white rounded-lg hover:bg-white/20 transition-colors mx-auto">
-                    <Upload className="w-4 h-4" />
-                    Choose File
-                  </button>
-                </div>
-              )}
+              <ImageUpload
+                currentImage={formData.featured_image}
+                onUploadComplete={(url) => setFormData(prev => ({ ...prev, featured_image: url }))}
+                onRemove={() => setFormData(prev => ({ ...prev, featured_image: '' }))}
+                folder="blog"
+              />
             </div>
 
             {/* Post Stats */}

@@ -28,8 +28,8 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
       id: i,
       left: Math.random() * 100,
       top: Math.random() * 100,
-      duration: 10 + Math.random() * 5,
-      delay: Math.random() * 3,
+      duration: 20 + Math.random() * 10,
+      delay: Math.random() * 5,
     }))
   }, [])
 
@@ -189,9 +189,9 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
               top: `${particle.top}%`,
             }}
             animate={{
-              y: [0, -50, 0],
+              y: [0, -100, 0],
               opacity: [0.2, 0.6, 0.2],
-              scale: [0.5, 1.8, 0.5],
+              scale: [0.5, 3, 0.5],
             }}
             transition={{
               duration: particle.duration,
@@ -202,9 +202,9 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
         ))}
       </div>
 
-      <div className="relative z-10">
+      <div className="relative z-10 container mx-auto px-6 pt-6 pb-12">
         {/* Header */}
-        <div className="max-w-4xl mx-auto px-6 pt-12">
+        <div className="mt-20">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}

@@ -154,11 +154,11 @@ export default function CustomDropdown({
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.95 }}
-            transition={{ duration: 0.2 }}
-            className="absolute z-50 w-full mt-2 max-h-60 overflow-auto bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/20"
+            initial={{ opacity: 0, y: -5 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -5 }}
+            transition={{ duration: 0.1 }}
+            className="absolute z-[9999] w-full mt-2 max-h-60 overflow-auto bg-slate-800/95 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl shadow-black/20"
             role="listbox"
           >
             <div className="py-2">
@@ -171,9 +171,9 @@ export default function CustomDropdown({
                   type="button"
                   onClick={() => handleOptionClick(option.value)}
                   onMouseEnter={() => setFocusedIndex(index)}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.02 }}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: index * 0.01 }}
                   className={`
                     w-full px-4 py-3 text-left text-sm transition-all duration-200 flex items-center justify-between
                     ${focusedIndex === index 
