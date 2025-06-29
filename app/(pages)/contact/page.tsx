@@ -116,11 +116,11 @@ export default function ContactPage() {
       <div className="mt-20">
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="mb-8" // Reduced margin
-        >
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.8 }}
+        className="mb-8" // Reduced margin
+      >
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-gray-300 hover:text-white transition-colors mb-6"
